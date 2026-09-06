@@ -127,7 +127,7 @@ mvn test
 |---------|------------|---------------|
 | Unit | JUnit 5 + Mockito | `ReservationServiceTest` — статусная машина, конфликты дат, ownership, ролевые проверки |
 | Controller | `@WebMvcTest` + `SecurityMockMvcRequestPostProcessors` | `ReservationControllerTest` — HTTP-контракт с security (201, 403, 404, 409) |
-| Integration | `@SpringBootTest` + **Testcontainers** (postgres:16) + `@Sql` | `ReservationApiIntegrationTest` — честный JWT-флоу через всю систему |
+| Integration | `@SpringBootTest` + **Testcontainers** (postgres:16) + `@Sql` | `ReservationApiIntegrationTest` — JWT-флоу через всю систему |
 
 ### Что проверяет интеграционный тест
 1. `@Sql` сидирует админа (обход "курицы-яйца": первого админа нельзя создать через API)
