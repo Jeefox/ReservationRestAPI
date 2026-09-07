@@ -1,0 +1,7 @@
+/workspace/src/test/java/school/grevcev/reservation/ReservationApiIntegrationTest.java
+/workspace/src/test/java/school/grevcev/reservation/ReservationStatusTest.java
+/workspace/src/test/java/school/grevcev/reservation/controller/ReservationControllerTest.java
+/workspace/src/test/java/school/grevcev/reservation/dbSeeder/DataSeederTest.java
+/workspace/src/test/java/school/grevcev/reservation/service/ReservationServiceTest.java
+/workspace/src/test/java/school/grevcev/reservation/service/RoomServiceTest.java
+/workspace/src/test/java/school/grevcev/reservation/service/UserServiceTest.java

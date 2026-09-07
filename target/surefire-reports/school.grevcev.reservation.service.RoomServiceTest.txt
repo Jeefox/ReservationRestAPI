@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: school.grevcev.reservation.service.RoomServiceTest
+-------------------------------------------------------------------------------
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.486 s -- in school.grevcev.reservation.service.RoomServiceTest

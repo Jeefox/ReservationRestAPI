@@ -1,0 +1,7 @@
+school/grevcev/reservation/ReservationApiIntegrationTest.class
+school/grevcev/reservation/service/ReservationServiceTest.class
+school/grevcev/reservation/service/UserServiceTest.class
+school/grevcev/reservation/dbSeeder/DataSeederTest.class
+school/grevcev/reservation/service/RoomServiceTest.class
+school/grevcev/reservation/ReservationStatusTest.class
+school/grevcev/reservation/controller/ReservationControllerTest.class
