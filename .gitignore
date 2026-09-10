@@ -37,3 +37,6 @@ build/
 *.log
 .DS_Store
 Thumbs.db
+
+# AI agent local data (checkpoints, etc.)
+.proxyai/
