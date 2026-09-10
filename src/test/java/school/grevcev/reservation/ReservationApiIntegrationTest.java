@@ -58,11 +58,11 @@ class ReservationApiIntegrationTest {
         // 3. Регистрация обычного юзера (открытый эндпоинт)
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Ivan\",\"email\":\"ivan@test.com\",\"password\":\"secret123\"}"))
+                        .content("{\"name\":\"Ivan\",\"email\":\"ivan@test.com\",\"password\":\"Secret123\"}"))
                 .andExpect(status().isOk());
 
         // 4. Логин обычного юзера
-        String userToken = login("ivan@test.com", "secret123");
+        String userToken = login("ivan@test.com", "Secret123");
 
         // 5. Обычный юзер НЕ может создать комнату — 403
         mockMvc.perform(post("/api/v1/rooms")

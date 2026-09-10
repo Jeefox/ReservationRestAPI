@@ -3,7 +3,7 @@ package school.grevcev.reservation.validator;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
-public class EnumValidator implements ConstraintValidator<ValidEnum, String> {
+public class EnumValidator implements ConstraintValidator<ValidEnum, Object> {
 
     private Class<? extends Enum<?>> enumClass;
 
@@ -13,18 +13,34 @@ public class EnumValidator implements ConstraintValidator<ValidEnum, String> {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public boolean isValid(String value, ConstraintValidatorContext context) {
+    public boolean isValid(Object value, ConstraintValidatorContext context) {
         if (value == null) {
-            return true; // @NotNull обрабатывает отсутствие значения отдельно
+            return true; // @NotNull обрабатывает null отдельно
         }
 
-        try {
-            // Приводим к сырому типу Class<Enum>, чтобы компилятор пропустил вызов
-            Enum.valueOf((Class<Enum>) enumClass, value);
-            return true;
-        } catch (IllegalArgumentException e) {
+        // Если значение уже enum — проверяем, что оно правильного типа
+        if (value instanceof Enum<?>) {
+            return enumClass.isInstance(value);
+        }
+
+        // Если String — проверяем по имени константы
+        if (value instanceof String) {
+            String strValue = ((String) value).trim();
+            if (strValue.isEmpty()) {
+                return false;
+            }
+            Object[] constants = enumClass.getEnumConstants();
+            if (constants == null) {
+                return false;
+            }
+            for (Object constant : constants) {
+                if (((Enum<?>) constant).name().equals(strValue)) {
+                    return true;
+                }
+            }
             return false;
         }
+
+        return false;
     }
 }
