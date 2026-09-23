@@ -8,7 +8,7 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
-import grevcev.kafka.event.ReservationCreatedKafkaEvent;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,7 +17,7 @@ import java.util.Map;
 public class KafkaProducerConfig {
 
     @Bean
-    public ProducerFactory<String, ReservationCreatedKafkaEvent> producerFactory(){
+    public ProducerFactory<String, JsonNode> producerFactory(){
         Map<String, Object> properties = new HashMap<>();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
                 "localhost:9092");
@@ -29,8 +29,8 @@ public class KafkaProducerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, ReservationCreatedKafkaEvent> kafkaTemplate(
-            ProducerFactory<String, ReservationCreatedKafkaEvent> producerFactory
+    public KafkaTemplate<String, JsonNode> kafkaTemplate(
+            ProducerFactory<String, JsonNode> producerFactory
     ){
         return new KafkaTemplate<>(producerFactory);
     }

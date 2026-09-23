@@ -2,6 +2,7 @@ package grevcev.reservation.service;
 
 import grevcev.exception.*;
 import grevcev.kafka.producer.ReservationKafkaProducer;
+import grevcev.outbox.service.OutboxService;
 import grevcev.reservation.dto.*;
 import grevcev.room.dto.RoomStatsResponse;
 import grevcev.user.model.UserRole;
@@ -40,6 +41,7 @@ class ReservationServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ReservationKafkaProducer producer;
+    @Mock private OutboxService outboxService;
 
     @InjectMocks
     private ReservationService reservationService;

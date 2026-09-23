@@ -2,6 +2,7 @@ package grevcev.reservation.service;
 
 import grevcev.exception.*;
 import grevcev.kafka.producer.ReservationKafkaProducer;
+import grevcev.outbox.service.OutboxService;
 import grevcev.reservation.dto.*;
 import grevcev.room.dto.RoomStatsResponse;
 import grevcev.user.model.UserRole;
@@ -37,15 +38,15 @@ public class ReservationService {
     private final UserRepository userRepository;
     private final RoomRepository roomRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
-    private final ReservationKafkaProducer producer;
+    private final OutboxService outboxService;
     public ReservationService (ReservationRepository reservationRepository, UserRepository userRepository,
                                RoomRepository roomRepository,  ApplicationEventPublisher applicationEventPublisher,
-                               ReservationKafkaProducer producer) {
+                               OutboxService outboxService) {
         this.reservationRepository = reservationRepository;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
         this.applicationEventPublisher = applicationEventPublisher;
-        this.producer = producer;
+        this.outboxService = outboxService;
     }
 
     @Transactional(readOnly = true)
@@ -76,9 +77,7 @@ public class ReservationService {
         applicationEventPublisher.publishEvent(new ReservationCreatedEvent(savedReservation.getId(),
                 savedReservation.getRoom().getId(), savedReservation.getStartDate(), savedReservation.getEndDate()));
 
-        producer.sendReservationToKafka(new ReservationCreatedKafkaEvent(savedReservation.getId(),
-                savedReservation.getUser().getId(), savedReservation.getRoom().getId(),
-                savedReservation.getStartDate(), savedReservation.getEndDate()));
+        outboxService.createReservationCreatedEvent(savedReservation);
         return toResponse(savedReservation);
     }
 
