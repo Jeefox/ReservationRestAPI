@@ -1,6 +1,8 @@
 package grevcev.outbox.service;
 
 import grevcev.kafka.event.ReservationCreatedKafkaEvent;
+import grevcev.kafka.event.KafkaEventEnvelope;
+import grevcev.kafka.event.KafkaEventType;
 import grevcev.outbox.model.OutboxEvent;
 import grevcev.outbox.model.OutboxEventStatus;
 import grevcev.outbox.repository.OutboxEventRepository;
@@ -34,17 +36,26 @@ public class OutboxService {
                 reservation.getStartDate(),
                 reservation.getEndDate()
         );
+        UUID eventId = UUID.randomUUID();
+        JsonNode payload = mapper.valueToTree(event);
 
-        JsonNode jsonNode = mapper.valueToTree(event);
+        KafkaEventEnvelope envelope = new KafkaEventEnvelope(
+                eventId,
+                KafkaEventType.RESERVATION_CREATED,
+                payload
+        );
+
+        JsonNode jsonNode = mapper.valueToTree(envelope);
 
         OutboxEvent outboxEvent = OutboxEvent.builder()
-                .id(UUID.randomUUID())
+                .id(eventId)
                 .createdAt(LocalDateTime.now())
                 .payload(jsonNode)
                 .aggregateType("Reservation")
                 .aggregateId(reservation.getId())
-                .eventType("ReservationCreated")
+                .eventType(KafkaEventType.RESERVATION_CREATED.name())
                 .status(OutboxEventStatus.NEW)
+                .partitionKey(reservation.getRoom().getId().toString())
                 .build();
 
         repository.save(outboxEvent);

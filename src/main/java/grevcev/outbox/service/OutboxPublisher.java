@@ -21,7 +21,7 @@ public class OutboxPublisher {
         List<OutboxEvent> events = outboxService.claimBatch();
         events.stream()
                 .forEach(event -> {
-                    kafkaProducer.send(event.getId().toString(), event.getPayload())
+                    kafkaProducer.send(event.getPartitionKey(), event.getPayload())
                             .whenComplete((result, ex) -> {
                                 if (ex != null) {
                                     log.error(

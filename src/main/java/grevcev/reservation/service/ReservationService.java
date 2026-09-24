@@ -74,8 +74,6 @@ public class ReservationService {
                 .build();
 
         Reservation savedReservation = reservationRepository.save(reservation);
-        applicationEventPublisher.publishEvent(new ReservationCreatedEvent(savedReservation.getId(),
-                savedReservation.getRoom().getId(), savedReservation.getStartDate(), savedReservation.getEndDate()));
 
         outboxService.createReservationCreatedEvent(savedReservation);
         return toResponse(savedReservation);

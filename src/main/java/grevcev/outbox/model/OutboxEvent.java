@@ -33,4 +33,6 @@ public class OutboxEvent{
     @Enumerated(EnumType.STRING)
     private OutboxEventStatus status;
     private LocalDateTime processingStartedAt;
+//  Ключ для партиции - номер комнаты, чтобы все события по одной комнате шли в одну partition
+    private String partitionKey;
 }
