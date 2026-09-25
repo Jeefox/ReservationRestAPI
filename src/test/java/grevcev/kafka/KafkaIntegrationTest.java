@@ -2,6 +2,7 @@ package grevcev.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import grevcev.AbstractIntegrationTest;
 import grevcev.kafka.event.KafkaEventEnvelope;
 import grevcev.kafka.event.KafkaEventType;
 import grevcev.kafka.event.ReservationCreatedKafkaEvent;
@@ -9,13 +10,9 @@ import grevcev.kafka.handler.ReservationCreatedHandler;
 import grevcev.kafka.producer.ReservationKafkaProducer;
 import grevcev.kafka.repository.ProcessedEventRepository;
 import grevcev.kafka.service.KafkaEventProcessingService;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -26,7 +23,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.LocalDate;
-import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -38,64 +34,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 
 @SpringBootTest
-@Testcontainers
 @ActiveProfiles("test")
-class KafkaIntegrationTest {
+class KafkaIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private KafkaEventProcessingService processingService;
-
-    @Container
-    static KafkaContainer kafka =
-            new KafkaContainer("apache/kafka-native:3.8.0");
-
-    @Container
-    static PostgreSQLContainer postgres =
-            new PostgreSQLContainer("postgres:16");
-
-    @DynamicPropertySource
-    static void overrideProperties(DynamicPropertyRegistry registry) {
-
-        registry.add(
-                "spring.kafka.bootstrap-servers",
-                kafka::getBootstrapServers
-        );
-
-        registry.add(
-                "spring.kafka.consumer.bootstrap-servers",
-                kafka::getBootstrapServers
-        );
-
-        registry.add(
-                "spring.kafka.producer.bootstrap-servers",
-                kafka::getBootstrapServers
-        );
-
-        registry.add(
-                "spring.datasource.url",
-                postgres::getJdbcUrl
-        );
-
-        registry.add(
-                "spring.datasource.username",
-                postgres::getUsername
-        );
-
-        registry.add(
-                "spring.datasource.password",
-                postgres::getPassword
-        );
-
-        registry.add(
-                "spring.datasource.driver-class-name",
-                postgres::getDriverClassName
-        );
-
-        registry.add(
-                "spring.jpa.hibernate.ddl-auto",
-                () -> "validate"
-        );
-    }
 
     @Autowired
     private ReservationKafkaProducer kafkaProducer;

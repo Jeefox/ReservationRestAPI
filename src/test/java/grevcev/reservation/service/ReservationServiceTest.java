@@ -1,7 +1,6 @@
 package grevcev.reservation.service;
 
 import grevcev.exception.*;
-import grevcev.kafka.producer.ReservationKafkaProducer;
 import grevcev.outbox.service.OutboxService;
 import grevcev.reservation.dto.*;
 import grevcev.room.dto.RoomStatsResponse;
@@ -14,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import grevcev.reservation.ReservationStatus;
-import grevcev.reservation.event.ReservationCreatedEvent;
 import grevcev.reservation.event.ReservationStatusChangedEvent;
 import grevcev.reservation.model.Reservation;
 import grevcev.room.model.Room;
@@ -40,9 +38,7 @@ class ReservationServiceTest {
     @Mock private RoomRepository roomRepository;
     @Mock private UserRepository userRepository;
     @Mock private ApplicationEventPublisher eventPublisher;
-    @Mock private ReservationKafkaProducer producer;
     @Mock private OutboxService outboxService;
-
     @InjectMocks
     private ReservationService reservationService;
 
@@ -77,7 +73,7 @@ class ReservationServiceTest {
         assertEquals("luxury", response.roomName());
         assertEquals(ReservationStatus.PENDING, response.status());
         verify(reservationRepository).save(any());
-        verify(eventPublisher).publishEvent(any(ReservationCreatedEvent.class));
+        verify(outboxService).createReservationCreatedEvent(saved);
     }
 
     @Test
@@ -134,7 +130,7 @@ class ReservationServiceTest {
                 () -> reservationService.createReservation(request, "ivan@email.com"));
 
         verify(reservationRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(outboxService, never()).createReservationCreatedEvent(any());
     }
 
     @Test
@@ -161,6 +157,7 @@ class ReservationServiceTest {
 
         assertEquals(10L, response.id());
         verify(reservationRepository).save(any());
+        verify(outboxService).createReservationCreatedEvent(saved);
     }
 
     // ============== getReservationById ==============

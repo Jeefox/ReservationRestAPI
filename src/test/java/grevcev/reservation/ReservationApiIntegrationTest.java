@@ -1,6 +1,7 @@
 package grevcev.reservation;
 
 import com.jayway.jsonpath.JsonPath;
+import grevcev.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,24 +22,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@Testcontainers
 @AutoConfigureMockMvc
-@ActiveProfiles("test")   // ← ВАЖНО: DevSeeder с @Profile("dev") не сработает
+@ActiveProfiles("test")
 @Sql(statements = "INSERT INTO users (name, email, password, role) VALUES ('IntegAdmin', 'integ-admin@test.com', '$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC', 'ADMIN')",
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class ReservationApiIntegrationTest {
-
-    @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16");
-
-    @DynamicPropertySource
-    static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
-    }
+class ReservationApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
