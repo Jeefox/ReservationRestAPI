@@ -9,9 +9,13 @@ import grevcev.kafka.handler.ReservationCreatedHandler;
 import grevcev.kafka.producer.ReservationKafkaProducer;
 import grevcev.kafka.repository.ProcessedEventRepository;
 import grevcev.kafka.service.KafkaEventProcessingService;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -22,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.LocalDate;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -53,6 +58,16 @@ class KafkaIntegrationTest {
 
         registry.add(
                 "spring.kafka.bootstrap-servers",
+                kafka::getBootstrapServers
+        );
+
+        registry.add(
+                "spring.kafka.consumer.bootstrap-servers",
+                kafka::getBootstrapServers
+        );
+
+        registry.add(
+                "spring.kafka.producer.bootstrap-servers",
                 kafka::getBootstrapServers
         );
 
