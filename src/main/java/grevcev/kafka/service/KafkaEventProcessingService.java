@@ -1,5 +1,7 @@
 package grevcev.kafka.service;
 
+import grevcev.kafka.handler.ReservationApprovedHandler;
+import grevcev.kafka.handler.ReservationCancelledHandler;
 import grevcev.kafka.handler.ReservationCreatedHandler;
 import grevcev.kafka.event.KafkaEventEnvelope;
 import grevcev.kafka.repository.ProcessedEventRepository;
@@ -15,11 +17,18 @@ public class KafkaEventProcessingService {
     private final ProcessedEventRepository repository;
     private final static Logger log = LoggerFactory.getLogger(KafkaEventProcessingService.class);
     private final ReservationCreatedHandler createdHandler;
+    private final ReservationApprovedHandler approvedHandler;
+    private final ReservationCancelledHandler cancelledHandler;
 
     public KafkaEventProcessingService(ProcessedEventRepository repository,
-                                       ReservationCreatedHandler createdHandler) {
+                                       ReservationCreatedHandler createdHandler,
+                                       ReservationApprovedHandler reservationApprovedHandler,
+                                       ReservationCancelledHandler cancelledHandler) {
         this.repository = repository;
         this.createdHandler = createdHandler;
+        this.approvedHandler = reservationApprovedHandler;
+        this.cancelledHandler = cancelledHandler;
+
     }
 
     @Transactional
@@ -31,13 +40,11 @@ public class KafkaEventProcessingService {
             }
             case RESERVATION_APPROVED -> {
                 if (tryRegisterEvent(envelope)) return;
-                log.info("Processed Event of ReservationApproved type, payload={}",
-                        envelope.payload());
+                approvedHandler.handle(envelope);
             }
             case RESERVATION_CANCELLED -> {
                 if (tryRegisterEvent(envelope)) return;
-                log.info("Processed Event of ReservationCancelled type, payload={}",
-                        envelope.payload());
+                cancelledHandler.handle(envelope);
             }
             default -> {
                 log.error("Unsupported Kafka event type: {}", envelope.eventType());

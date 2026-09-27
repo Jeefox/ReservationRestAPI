@@ -1,5 +1,6 @@
 package grevcev.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import grevcev.AbstractIntegrationTest;
@@ -103,7 +104,7 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void eventProcessing_shouldRollbackProcessedEvent_whenHandlerFails() {
+    void eventProcessing_shouldRollbackProcessedEvent_whenHandlerFails() throws JsonProcessingException {
         UUID eventId = UUID.randomUUID();
 
         ReservationCreatedKafkaEvent event =
@@ -123,11 +124,6 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
                         KafkaEventType.RESERVATION_CREATED,
                         payload
                 );
-
-        doThrow(new RuntimeException("Test exception"))
-                .when(reservationCreatedHandler)
-                .handle(any(KafkaEventEnvelope.class));
-
         assertThatThrownBy(() ->
                 processingService.processEvent(envelope)
         ).isInstanceOf(RuntimeException.class);
