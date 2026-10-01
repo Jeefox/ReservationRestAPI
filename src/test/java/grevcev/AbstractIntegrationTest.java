@@ -11,16 +11,18 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers
 public abstract class AbstractIntegrationTest {
 
-    @Container
-    static KafkaContainer kafka =
+    static final KafkaContainer kafka =
             new KafkaContainer("apache/kafka-native:3.8.0");
 
-    @Container
-    static PostgreSQLContainer postgres =
+    static final PostgreSQLContainer postgres =
             new PostgreSQLContainer("postgres:16");
+
+    static {
+        kafka.start();
+        postgres.start();
+    }
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {

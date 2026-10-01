@@ -11,6 +11,14 @@ import grevcev.kafka.handler.ReservationCreatedHandler;
 import grevcev.kafka.producer.ReservationKafkaProducer;
 import grevcev.kafka.repository.ProcessedEventRepository;
 import grevcev.kafka.service.KafkaEventProcessingService;
+import grevcev.reservation.ReservationStatus;
+import grevcev.reservation.model.Reservation;
+import grevcev.reservation.repository.ReservationRepository;
+import grevcev.room.model.Room;
+import grevcev.room.repository.RoomRepository;
+import grevcev.user.model.User;
+import grevcev.user.model.UserRole;
+import grevcev.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -53,19 +61,54 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
     @MockitoSpyBean
     private ReservationCreatedHandler reservationCreatedHandler;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RoomRepository roomRepository;
+
+    @Autowired
+    private ReservationRepository reservationRepository;
+
     @Test
     void reservationCreatedEvent_shouldBeConsumedAndProcessedOnlyOnce()
             throws Exception {
+
+        User user = userRepository.save(
+                User.builder()
+                        .name("Kafka Test User")
+                        .email("kafka@test.com")
+                        .password("password")
+                        .role(UserRole.USER)
+                        .build()
+        );
+
+        Room room = roomRepository.save(
+                Room.builder()
+                        .name("Kafka Test Room")
+                        .capacity(2)
+                        .build()
+        );
+
+        Reservation reservation = reservationRepository.save(
+                Reservation.builder()
+                        .user(user)
+                        .room(room)
+                        .startDate(LocalDate.of(2027, 1, 10))
+                        .endDate(LocalDate.of(2027, 1, 15))
+                        .status(ReservationStatus.PENDING)
+                        .build()
+        );
 
         UUID eventId = UUID.randomUUID();
 
         ReservationCreatedKafkaEvent event =
                 new ReservationCreatedKafkaEvent(
-                        1L,
-                        2L,
-                        3L,
-                        LocalDate.of(2027, 1, 10),
-                        LocalDate.of(2027, 1, 15)
+                        reservation.getId(),
+                        user.getId(),
+                        room.getId(),
+                        reservation.getStartDate(),
+                        reservation.getEndDate()
                 );
 
         JsonNode payload = objectMapper.valueToTree(event);
@@ -82,11 +125,11 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
         System.out.println(message);
 
         kafkaProducer
-                .send("3", message)
+                .send(room.getId().toString(), message)
                 .get(10, TimeUnit.SECONDS);
 
         kafkaProducer
-                .send("3", message)
+                .send(room.getId().toString(), message)
                 .get(10, TimeUnit.SECONDS);
 
         org.awaitility.Awaitility.await()
@@ -132,5 +175,4 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
                 processedEventRepository.existsById(eventId)
         ).isFalse();
     }
-
 }

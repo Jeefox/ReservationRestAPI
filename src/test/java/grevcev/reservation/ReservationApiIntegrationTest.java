@@ -37,11 +37,21 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
         String adminToken = login("integ-admin@test.com", "password1");
 
         // 2. Админ создает комнату — 201
-        mockMvc.perform(post("/api/v1/rooms")
-                        .header("Authorization", "Bearer " + adminToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"integ-room\",\"capacity\":2}"))
-                .andExpect(status().isCreated());
+        MockHttpServletResponse roomResponse = mockMvc.perform(
+                        post("/api/v1/rooms")
+                                .header("Authorization", "Bearer " + adminToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"integ-room\",\"capacity\":2}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse();
+
+        Number roomIdValue = JsonPath.read(
+                roomResponse.getContentAsString(),
+                "$.id"
+        );
+
+        long roomId = roomIdValue.longValue();
 
         // 3. Регистрация обычного юзера (открытый эндпоинт)
         mockMvc.perform(post("/api/v1/auth/register")
@@ -59,18 +69,30 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
                         .content("{\"name\":\"hack-room\",\"capacity\":1}"))
                 .andExpect(status().isForbidden());
 
-        // 6. Юзер создает бронь в созданной комнате (id=1) — 201
+        // 6. Юзер создает бронь в созданной комнате — 201
         mockMvc.perform(post("/api/v1/reservations")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roomId\":1,\"startDate\":\"2027-01-10\",\"endDate\":\"2027-01-15\"}"))
+                        .content("""
+                        {
+                            "roomId": %d,
+                            "startDate": "2027-01-10",
+                            "endDate": "2027-01-15"
+                        }
+                        """.formatted(roomId)))
                 .andExpect(status().isCreated());
 
         // 7. Пересекающаяся бронь — 409
         mockMvc.perform(post("/api/v1/reservations")
                         .header("Authorization", "Bearer " + userToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roomId\":1,\"startDate\":\"2027-01-14\",\"endDate\":\"2027-01-20\"}"))
+                        .content("""
+                        {
+                            "roomId": %d,
+                            "startDate": "2027-01-14",
+                            "endDate": "2027-01-20"
+                        }
+                        """.formatted(roomId)))
                 .andExpect(status().isConflict());
 
         // 8. Аноним не может смотреть брони — 4xx
