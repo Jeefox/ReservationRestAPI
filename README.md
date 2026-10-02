@@ -1,4 +1,4 @@
-![CI](https://github.com/Jeefox/ReservationSpring/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Jeefox/ReservationRestAPI/actions/workflows/ci.yml)
 
 Postman-коллекция для регрессии: [`docs/postman-collection.json`](docs/postman-collection.json) — импортируй в Postman и гоняй все сценарии одной кнопкой (Collection Runner).
 
