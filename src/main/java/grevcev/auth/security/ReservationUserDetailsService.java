@@ -1,5 +1,6 @@
 package grevcev.auth.security;
 
+import grevcev.user.model.ReservationUserDetails;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -26,10 +27,13 @@ public class ReservationUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("User not found: " + email);
         }
 
-        return new org.springframework.security.core.userdetails.User(
+        return new ReservationUserDetails(
+                user.get().getId(),
                 user.get().getEmail(),
                 user.get().getPassword(),
                 List.of(new SimpleGrantedAuthority("ROLE_"+user.get().getRole().name()))
         );
     }
+
+
 }

@@ -1,23 +1,26 @@
-package grevcev.reservation.service;
+package grevcev.user.service;
 
-import grevcev.user.service.UserService;
+import grevcev.exception.UserNotFoundException;
+import grevcev.user.dto.UpdateUserRequest;
+import grevcev.user.dto.UserResponse;
+import grevcev.user.model.ReservationUserDetails;
+import grevcev.user.model.User;
+import grevcev.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import grevcev.user.dto.UpdateUserRequest;
-import grevcev.user.dto.UserResponse;
-import grevcev.exception.UserNotFoundException;
-import grevcev.user.model.User;
-import grevcev.user.repository.UserRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class UserServiceTest {
@@ -29,6 +32,18 @@ public class UserServiceTest {
 
     @Test
     void updateUser_success(){
+
+        ReservationUserDetails userDetails = new ReservationUserDetails(
+                1L, "user@test.com", "USER", List.of(() -> "ROLE_USER")
+        );
+
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn(userDetails);
+
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        SecurityContextHolder.setContext(securityContext);
+
         UpdateUserRequest updateUserRequest = new UpdateUserRequest("Ivan", "ivan@email.com");
         User user = User.builder().id(1L).name("Ivan").email("ivan26@email.com").build();
 

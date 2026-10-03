@@ -1,16 +1,16 @@
 package grevcev.reservation.service;
 
+import grevcev.exception.RoomNotFoundException;
+import grevcev.room.dto.RoomResponse;
+import grevcev.room.dto.UpdateRoomRequest;
+import grevcev.room.model.Room;
+import grevcev.room.repository.RoomRepository;
 import grevcev.room.service.RoomService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import grevcev.room.dto.RoomResponse;
-import grevcev.room.dto.UpdateRoomRequest;
-import grevcev.exception.RoomNotFoundException;
-import grevcev.room.model.Room;
-import grevcev.room.repository.RoomRepository;
 
 import java.util.Optional;
 
