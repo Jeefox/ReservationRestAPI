@@ -26,10 +26,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Transactional
-@Sql(statements = "INSERT INTO users (name, email, password, role) VALUES ('IntegAdmin', 'integ-admin@test.com', '$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC', 'ADMIN')",
-        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Transactional // Откатывает все изменения БД после каждого теста
+@Sql(statements = {
+        "DELETE FROM users WHERE email = 'integ-admin@test.com'", // <-- Очищаем перед вставкой
+        "INSERT INTO users (name, email, password, role) VALUES ('IntegAdmin', 'integ-admin@test.com', '$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC', 'ADMIN')"
+}, executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class ReservationApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
@@ -182,7 +183,7 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void anonymousCannotUpdateProfile_returns401() throws Exception {
+    void anonymousCannotUpdateProfile_returns403() throws Exception {
         // Arrange
         Long targetUserId = registerUser("TargetAnon", "target_anon@test.com", "Password123");
 

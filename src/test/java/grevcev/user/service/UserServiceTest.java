@@ -36,7 +36,6 @@ public class UserServiceTest {
         ReservationUserDetails userDetails = new ReservationUserDetails(
                 1L, "user@test.com", "USER", List.of(() -> "ROLE_USER")
         );
-
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn(userDetails);
 
@@ -45,14 +44,18 @@ public class UserServiceTest {
         SecurityContextHolder.setContext(securityContext);
 
         UpdateUserRequest updateUserRequest = new UpdateUserRequest("Ivan", "ivan@email.com");
-        User user = User.builder().id(1L).name("Ivan").email("ivan26@email.com").build();
+        User user = User.builder().id(1L).name("OldName").email("old@email.com").build();
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
         UserResponse response = userService.update(1L, updateUserRequest);
 
         assertEquals(1L, response.id());
         assertEquals("Ivan", response.name());
         assertEquals("ivan@email.com", response.email());
+
+        // 3. ОЧИЩАЕМ КОНТЕКСТ ПОСЛЕ ТЕСТА (Best Practice)
+        SecurityContextHolder.clearContext();
     }
 
     @Test
