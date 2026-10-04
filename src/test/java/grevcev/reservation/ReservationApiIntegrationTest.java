@@ -18,6 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -26,10 +31,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Transactional
-@Sql(statements = "INSERT INTO users (name, email, password, role) VALUES ('IntegAdmin', 'integ-admin@test.com', '$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC', 'ADMIN')",
-        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@Transactional // Откатывает все изменения БД после каждого теста
+@Sql(statements = {
+        "DELETE FROM users WHERE email = 'integ-admin@test.com'", // <-- Очищаем перед вставкой
+        "INSERT INTO users (name, email, password, role) VALUES ('IntegAdmin', 'integ-admin@test.com', '$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC', 'ADMIN')"
+}, executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class ReservationApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
@@ -182,7 +188,7 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void anonymousCannotUpdateProfile_returns401() throws Exception {
+    void anonymousCannotUpdateProfile_returns403() throws Exception {
         // Arrange
         Long targetUserId = registerUser("TargetAnon", "target_anon@test.com", "Password123");
 
@@ -207,5 +213,120 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("User not found after registration"))
                 .getId();
+    }
+
+    @Test
+    void userCannotGetAnotherReservation_returns403() throws Exception {
+
+        registerUser("ReservationOwner", "reservation_owner@test.com", "Password123");
+        registerUser("OtherUser", "reservation_other@test.com", "Password123");
+
+        String ownerToken = login("reservation_owner@test.com", "Password123");
+        String otherUserToken = login("reservation_other@test.com", "Password123");
+
+        // Создаём комнату админом
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        MockHttpServletResponse roomResponse = mockMvc.perform(
+                        post("/api/v1/rooms")
+                                .header("Authorization", "Bearer " + adminToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"reservation-security-room\",\"capacity\":2}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse();
+
+        long roomId = ((Number) JsonPath.read(
+                roomResponse.getContentAsString(), "$.id")).longValue();
+
+        // Создаём бронь владельцем
+        MockHttpServletResponse reservationResponse = mockMvc.perform(
+                        post("/api/v1/reservations")
+                                .header("Authorization", "Bearer " + ownerToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                        "roomId": %d,
+                                        "startDate": "2027-02-10",
+                                        "endDate": "2027-02-15"
+                                    }
+                                    """.formatted(roomId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse();
+
+        long reservationId = ((Number) JsonPath.read(
+                reservationResponse.getContentAsString(), "$.id")).longValue();
+
+        // OtherUser пытается посмотреть чужую бронь
+        mockMvc.perform(get("/api/v1/reservations/" + reservationId)
+                        .header("Authorization", "Bearer " + otherUserToken))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void userCannotChangeAnotherReservationStatus_returns403BeforeTransitionCheck() throws Exception {
+        // Arrange
+        registerUser("StatusOwner", "status_owner@test.com", "Password123");
+        registerUser("StatusOther", "status_other@test.com", "Password123");
+
+        String ownerToken = login("status_owner@test.com", "Password123");
+        String otherUserToken = login("status_other@test.com", "Password123");
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        // Создаём комнату
+        MockHttpServletResponse roomResponse = mockMvc.perform(
+                        post("/api/v1/rooms")
+                                .header("Authorization", "Bearer " + adminToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"status-security-room\",\"capacity\":2}"))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse();
+
+        long roomId = ((Number) JsonPath.read(
+                roomResponse.getContentAsString(), "$.id")).longValue();
+
+        // Создаём бронь владельцем
+        MockHttpServletResponse reservationResponse = mockMvc.perform(
+                        post("/api/v1/reservations")
+                                .header("Authorization", "Bearer " + ownerToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                        "roomId": %d,
+                                        "startDate": "2027-03-10",
+                                        "endDate": "2027-03-15"
+                                    }
+                                    """.formatted(roomId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse();
+
+        long reservationId = ((Number) JsonPath.read(
+                reservationResponse.getContentAsString(), "$.id")).longValue();
+
+        // Владелец отменяет бронь
+        mockMvc.perform(patch("/api/v1/reservations/" + reservationId + "/status")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "status": "CANCELLED"
+                }
+                """))
+                .andExpect(status().isOk());
+
+        // Чужой USER пытается сделать CANCELLED → APPROVED.
+        // Должен получить 403 ДО проверки FSM.
+        mockMvc.perform(patch("/api/v1/reservations/" + reservationId + "/status")
+                        .header("Authorization", "Bearer " + otherUserToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "status": "APPROVED"
+                }
+                """))
+                .andExpect(status().isForbidden());
     }
 }

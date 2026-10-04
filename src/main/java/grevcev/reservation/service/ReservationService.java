@@ -7,6 +7,7 @@ import grevcev.reservation.dto.*;
 import grevcev.room.dto.RoomStatsResponse;
 import grevcev.user.model.UserRole;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,7 @@ import grevcev.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -50,9 +52,16 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
-    public ReservationResponse getReservationById(Long id) {
-        Reservation reservation = reservationRepository.findById(id).orElseThrow(()->new ReservationNotFoundException(id));
-        return toResponse(reservation);
+    public ReservationResponse getReservationById(Long id, String userName) {
+        Reservation found = reservationRepository.findById(id).orElseThrow(()->new ReservationNotFoundException(id));
+        User currentUser = userRepository.findByEmail(userName)
+                .orElseThrow(UserNotFoundException::new);
+
+        boolean isOwner = found.getUser().getId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
+        if (!isOwner && !isAdmin) throw new AccessDeniedException("Вы не владелец этой брони");
+
+        return toResponse(found);
     }
 
     @Transactional
@@ -167,28 +176,34 @@ public class ReservationService {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ReservationNotFoundException(id));
 
-        ReservationStatus currentStatus = reservation.getStatus();
-        if (!currentStatus.canTransitionTo(request.status())) {
-            throw new InvalidStatusTransitionException(currentStatus, request.status());
-        }
-
         User currentUser = userRepository.findByEmail(email)
                 .orElseThrow(UserNotFoundException::new);
 
-        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
-        boolean isOwner = reservation.getUser().getId().equals(currentUser.getId());
-
-        if (ReservationStatus.isApproverRequired(currentStatus, request.status())) {
-            if (!isAdmin) throw new AccessDeniedException("Только админ может одобрять брони");
-        } else {
-            if (!isOwner && !isAdmin) throw new AccessDeniedException("Вы не владелец этой брони");
-        }
+        ReservationStatus currentStatus = validateStatusTransition(request, currentUser, reservation);
 
         reservation.setStatus(request.status());
         log.info("Reservation {} status changed: {} -> {}", id, currentStatus, request.status());
         applicationEventPublisher.publishEvent(new ReservationStatusChangedEvent(reservation.getId(), currentStatus, reservation.getStatus()));
 
         return toResponse(reservation);
+    }
+
+    private static @NonNull ReservationStatus validateStatusTransition(UpdateStatusRequest request, User currentUser, Reservation reservation) {
+        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
+        boolean isOwner = reservation.getUser().getId().equals(currentUser.getId());
+
+        ReservationStatus currentStatus = reservation.getStatus();
+
+        if (ReservationStatus.isApproverRequired(currentStatus, request.status())) {
+            if (!isAdmin) throw new AccessDeniedException("Только админ может одобрять брони");
+        } else {
+            if (!isOwner && !isAdmin) throw new AccessDeniedException("Доступ к этой операции запрещен");
+        }
+
+        if (!currentStatus.canTransitionTo(request.status())) {
+            throw new InvalidStatusTransitionException(currentStatus, request.status());
+        }
+        return currentStatus;
     }
 
     @Transactional

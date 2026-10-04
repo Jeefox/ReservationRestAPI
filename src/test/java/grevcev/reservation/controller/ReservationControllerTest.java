@@ -3,6 +3,7 @@ package grevcev.reservation.controller;
 import grevcev.auth.security.ReservationUserDetailsService;
 import grevcev.auth.security.SecurityConfig;
 import grevcev.auth.service.JwtService;
+import grevcev.exception.GlobalExceptionHandler;
 import grevcev.exception.InvalidStatusTransitionException;
 import grevcev.exception.ReservationNotFoundException;
 import grevcev.reservation.ReservationStatus;
@@ -10,13 +11,13 @@ import grevcev.reservation.dto.ReservationResponse;
 import grevcev.reservation.service.ReservationService;
 import grevcev.room.dto.RoomStatsResponse;
 import grevcev.room.service.RoomService;
+import grevcev.user.model.ReservationUserDetails;
 import grevcev.user.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,10 +30,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ReservationController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, GlobalExceptionHandler.class})
 class ReservationControllerTest {
 
     @Autowired
@@ -87,12 +89,13 @@ class ReservationControllerTest {
 
     @Test
     void getReservation_returns404ReservationNotFound() throws Exception {
-        when(reservationService.getReservationById(999L))
+        when(reservationService.getReservationById(eq(999L), eq("ivan@email.com")))
                 .thenThrow(new ReservationNotFoundException(999L));
 
         // GET тоже требует аутентификацию — добавляем .with(ivan())
         mockMvc.perform(get("/api/v1/reservations/999")
                         .with(ivan()))
+                .andDo(print())
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Reservation with id 999 not found"));
     }
@@ -131,6 +134,14 @@ class ReservationControllerTest {
     }
 
     private static RequestPostProcessor ivan() {
-        return SecurityMockMvcRequestPostProcessors.user("ivan@email.com").roles("USER");
+        ReservationUserDetails customUser = new ReservationUserDetails(
+                1L,                     // id пользователя
+                "ivan@email.com",       // username/email
+                "password",             // пароль (для мока не важен)
+                List.of(() -> "ROLE_USER") // authorities
+        );
+
+        // 2. Передаем именно этот объект в MockMvc
+        return SecurityMockMvcRequestPostProcessors.user(customUser);
     }
 }

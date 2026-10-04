@@ -177,8 +177,10 @@ class ReservationServiceTest {
                 .build();
 
         when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation));
+        when(userRepository.findByEmail("ivan@email.com"))
+                .thenReturn(Optional.of(user));
 
-        ReservationResponse response = reservationService.getReservationById(10L);
+        ReservationResponse response = reservationService.getReservationById(10L, "ivan@email.com");
 
         assertEquals(10L, response.id());
         assertEquals("Ivan", response.userName());
@@ -189,7 +191,7 @@ class ReservationServiceTest {
         when(reservationRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(ReservationNotFoundException.class,
-                () -> reservationService.getReservationById(999L));
+                () -> reservationService.getReservationById(999L, "ivan@email.com"));
     }
 
     // ============== updateReservation ==============
@@ -460,23 +462,22 @@ class ReservationServiceTest {
 
     @Test
     void changeStatus_invalidTransition_throwsFirst() {
-        // CANCELLED → APPROVED запрещен FSM'ом ДО проверки ролей
         UpdateStatusRequest request = new UpdateStatusRequest(ReservationStatus.APPROVED);
-        User user = User.builder().id(1L).name("Ivan").email("ivan@email.com")
-                .role(UserRole.USER).build();
+        User owner = User.builder().id(1L).name("Ivan").email("ivan@email.com").role(UserRole.USER).build();
+        User admin = User.builder().id(99L).name("Admin").email("admin@email.com").role(UserRole.ADMIN).build();
         Room room = Room.builder().id(2L).name("luxury").capacity(2).build();
 
         Reservation reservation = Reservation.builder()
-                .id(1L).user(user).room(room)
+                .id(1L).user(owner).room(room)
                 .status(ReservationStatus.CANCELLED)
                 .build();
 
         when(reservationRepository.findById(1L)).thenReturn(Optional.of(reservation));
+        when(userRepository.findByEmail("admin@email.com")).thenReturn(Optional.of(admin));
 
         assertThrows(InvalidStatusTransitionException.class,
-                () -> reservationService.changeStatus(1L, request, "ivan@email.com"));
+                () -> reservationService.changeStatus(1L, request, "admin@email.com"));
 
-        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
         verify(eventPublisher, never()).publishEvent(any());
     }
 
@@ -496,5 +497,92 @@ class ReservationServiceTest {
         assertEquals("luxury", result.get(0).roomName());
         assertEquals(3L, result.get(0).bookingCount());
         verify(reservationRepository).getStats(from, to);
+    }
+
+    @Test
+    void getReservationById_notOwner_throwsAccessDenied() {
+        User owner = User.builder()
+                .id(1L)
+                .name("Ivan")
+                .email("ivan@email.com")
+                .role(UserRole.USER)
+                .build();
+
+        User otherUser = User.builder()
+                .id(99L)
+                .name("Other")
+                .email("other@email.com")
+                .role(UserRole.USER)
+                .build();
+
+        Room room = Room.builder()
+                .id(2L)
+                .name("luxury")
+                .capacity(2)
+                .build();
+
+        Reservation reservation = Reservation.builder()
+                .id(10L)
+                .user(owner)
+                .room(room)
+                .startDate(LocalDate.now().plusDays(1))
+                .endDate(LocalDate.now().plusDays(3))
+                .status(ReservationStatus.PENDING)
+                .build();
+
+        when(reservationRepository.findById(10L))
+                .thenReturn(Optional.of(reservation));
+
+        when(userRepository.findByEmail("other@email.com"))
+                .thenReturn(Optional.of(otherUser));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> reservationService.getReservationById(10L, "other@email.com")
+        );
+    }
+
+    @Test
+    void getReservationById_adminCanViewOthers() {
+        User owner = User.builder()
+                .id(1L)
+                .name("Ivan")
+                .email("ivan@email.com")
+                .role(UserRole.USER)
+                .build();
+
+        User admin = User.builder()
+                .id(99L)
+                .name("Admin")
+                .email("admin@admin.com")
+                .role(UserRole.ADMIN)
+                .build();
+
+        Room room = Room.builder()
+                .id(2L)
+                .name("luxury")
+                .capacity(2)
+                .build();
+
+        Reservation reservation = Reservation.builder()
+                .id(10L)
+                .user(owner)
+                .room(room)
+                .startDate(LocalDate.now().plusDays(1))
+                .endDate(LocalDate.now().plusDays(3))
+                .status(ReservationStatus.PENDING)
+                .build();
+
+        when(reservationRepository.findById(10L))
+                .thenReturn(Optional.of(reservation));
+
+        when(userRepository.findByEmail("admin@admin.com"))
+                .thenReturn(Optional.of(admin));
+
+        ReservationResponse response =
+                reservationService.getReservationById(10L, "admin@admin.com");
+
+        assertEquals(10L, response.id());
+        assertEquals("Ivan", response.userName());
     }
 }

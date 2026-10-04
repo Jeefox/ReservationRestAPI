@@ -2,6 +2,7 @@ package grevcev.reservation.controller;
 
 import grevcev.reservation.dto.*;
 import grevcev.room.dto.RoomStatsResponse;
+import grevcev.user.model.ReservationUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -69,8 +70,12 @@ public class ReservationController {
     @ApiResponse(responseCode = "200", description = "Бронь найдена")
     @ApiResponse(responseCode = "404", description = "Бронь не найдена")
     @GetMapping("/{id}")
-    public ReservationResponse getReservationById(@PathVariable Long id) {
-        return reservationService.getReservationById(id);
+    public ReservationResponse getReservationById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal ReservationUserDetails userDetails) {
+        return reservationService.getReservationById(
+                id,
+                userDetails.getUsername());
     }
 
     @Operation(
