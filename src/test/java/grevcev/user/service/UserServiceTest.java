@@ -53,8 +53,7 @@ public class UserServiceTest {
         assertEquals(1L, response.id());
         assertEquals("Ivan", response.name());
         assertEquals("ivan@email.com", response.email());
-
-        // 3. ОЧИЩАЕМ КОНТЕКСТ ПОСЛЕ ТЕСТА (Best Practice)
+      
         SecurityContextHolder.clearContext();
     }
 
