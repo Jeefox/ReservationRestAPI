@@ -2,34 +2,42 @@ package grevcev.reservation;
 
 import com.jayway.jsonpath.JsonPath;
 import grevcev.AbstractIntegrationTest;
+import grevcev.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+
+
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Transactional
 @Sql(statements = "INSERT INTO users (name, email, password, role) VALUES ('IntegAdmin', 'integ-admin@test.com', '$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC', 'ADMIN')",
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class ReservationApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // Внедряем репозиторий для проверки реального состояния БД (side effects)
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     void fullBookingFlow_withRolesAndConflict() throws Exception {
@@ -56,11 +64,11 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
         // 3. Регистрация обычного юзера (открытый эндпоинт)
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Ivan\",\"email\":\"ivan@test.com\",\"password\":\"Secret123\"}"))
-                .andExpect(status().isOk());
+                        .content("{\"name\":\"Ivan\",\"email\":\"ivan@test.com\",\"password\":\"Password123\"}"))
+                .andExpect(status().is2xxSuccessful());
 
         // 4. Логин обычного юзера
-        String userToken = login("ivan@test.com", "Secret123");
+        String userToken = login("ivan@test.com", "Password123");
 
         // 5. Обычный юзер НЕ может создать комнату — 403
         mockMvc.perform(post("/api/v1/rooms")
@@ -107,5 +115,97 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse();
         return JsonPath.read(response.getContentAsString(), "$.token");
+    }
+
+    @Test
+    void userCanUpdateOwnProfile_returns200AndUpdatesDb() throws Exception {
+        // Arrange
+        Long userId = registerUser("OwnUser", "own@test.com", "Password123");
+        String token = login("own@test.com", "Password123");
+
+        // Act
+        mockMvc.perform(put("/api/v1/users/" + userId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"UpdatedOwnName\",\"email\":\"updated_own@test.com\"}"))
+                .andExpect(status().isOk());
+
+        // Assert: проверяем, что данные в БД действительно изменились
+        var updatedUser = userRepository.findById(userId).orElseThrow();
+        assertThat(updatedUser.getName()).isEqualTo("UpdatedOwnName");
+        assertThat(updatedUser.getEmail()).isEqualTo("updated_own@test.com");
+    }
+
+    @Test
+    void userCannotUpdateAnotherProfile_returns403AndDbRemainsUnchanged() throws Exception {
+        // Arrange
+        Long targetUserId = registerUser("TargetUser", "target@test.com", "Password123");
+        Long attackerUserId = registerUser("AttackerUser", "attacker@test.com", "Password123");
+        String attackerToken = login("attacker@test.com", "Password123");
+
+        // Запоминаем исходное состояние жертвы
+        var originalTargetUser = userRepository.findById(targetUserId).orElseThrow();
+        String originalName = originalTargetUser.getName();
+
+        // Act: пытаемся взломать
+        mockMvc.perform(put("/api/v1/users/" + targetUserId)
+                        .header("Authorization", "Bearer " + attackerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"HackedName\",\"email\":\"hacked@test.com\"}"))
+                .andExpect(status().isForbidden()); // 403
+
+        // Assert: КРИТИЧЕСКИ ВАЖНО — проверяем, что БД НЕ изменилась
+        var unchangedTargetUser = userRepository.findById(targetUserId).orElseThrow();
+        assertThat(unchangedTargetUser.getName())
+                .as("Имя пользователя не должно было измениться после попытки взлома")
+                .isEqualTo(originalName);
+    }
+
+    @Test
+    void adminCanUpdateAnotherUserProfile_returns200AndUpdatesDb() throws Exception {
+        // Arrange
+        Long targetUserId = registerUser("TargetForAdmin", "target_admin@test.com", "Password123");
+        // Используем админа, созданного через @Sql
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        // Act
+        mockMvc.perform(put("/api/v1/users/" + targetUserId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"AdminUpdatedName\",\"email\":\"admin_updated@test.com\"}"))
+                .andExpect(status().isOk());
+
+        // Assert: проверяем, что админ реально изменил данные
+        var updatedUser = userRepository.findById(targetUserId).orElseThrow();
+        assertThat(updatedUser.getName()).isEqualTo("AdminUpdatedName");
+        assertThat(updatedUser.getEmail()).isEqualTo("admin_updated@test.com");
+    }
+
+    @Test
+    void anonymousCannotUpdateProfile_returns401() throws Exception {
+        // Arrange
+        Long targetUserId = registerUser("TargetAnon", "target_anon@test.com", "Password123");
+
+        // Act: запрос БЕЗ заголовка Authorization
+        mockMvc.perform(put("/api/v1/users/" + targetUserId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"AnonUpdated\",\"email\":\"anon@test.com\"}"))
+                .andExpect(status().isForbidden()); // 401
+    }
+
+    /**
+     * Регистрирует пользователя и возвращает его ID из базы данных.
+     * Это делает тесты чище и избавляет от дублирования кода регистрации.
+     */
+    private Long registerUser(String name, String email, String password) throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + name + "\",\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().is2xxSuccessful()); // или isCreated(), зависит от вашей реализации
+
+        // Получаем ID из БД, чтобы быть на 100% уверенными в корректности данных для тестов
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("User not found after registration"))
+                .getId();
     }
 }

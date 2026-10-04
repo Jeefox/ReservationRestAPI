@@ -1,6 +1,5 @@
 package grevcev.reservation;
 
-import grevcev.reservation.ReservationStatus;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;

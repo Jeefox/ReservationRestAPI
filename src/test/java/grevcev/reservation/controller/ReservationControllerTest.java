@@ -1,5 +1,16 @@
 package grevcev.reservation.controller;
 
+import grevcev.auth.security.ReservationUserDetailsService;
+import grevcev.auth.security.SecurityConfig;
+import grevcev.auth.service.JwtService;
+import grevcev.exception.InvalidStatusTransitionException;
+import grevcev.exception.ReservationNotFoundException;
+import grevcev.reservation.ReservationStatus;
+import grevcev.reservation.dto.ReservationResponse;
+import grevcev.reservation.service.ReservationService;
+import grevcev.room.dto.RoomStatsResponse;
+import grevcev.room.service.RoomService;
+import grevcev.user.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -10,16 +21,6 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import grevcev.reservation.ReservationStatus;
-import grevcev.reservation.dto.ReservationResponse;
-import grevcev.room.dto.RoomStatsResponse;
-import grevcev.exception.InvalidStatusTransitionException;
-import grevcev.exception.ReservationNotFoundException;
-import grevcev.auth.security.SecurityConfig;
-import grevcev.auth.service.JwtService;
-import grevcev.reservation.service.ReservationService;
-import grevcev.room.service.RoomService;
-import grevcev.user.service.UserService;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -50,7 +51,7 @@ class ReservationControllerTest {
     private JwtService jwtService;
 
     @MockitoBean
-    private UserDetailsService userDetailsService;
+    private ReservationUserDetailsService userDetailsService;
 
     @Test
     void createReservation_returns201WithLocation() throws Exception {
