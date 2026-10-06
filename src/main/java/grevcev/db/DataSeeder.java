@@ -13,8 +13,8 @@ import grevcev.user.repository.UserRepository;
 @Component
 public class DataSeeder implements CommandLineRunner {
 
-    private static final String USER_PASSWORD_HASH = "$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC";
-    private static final String ADMIN_PASSWORD_HASH = "$2a$10$STtJk5kCZi1OVrro8ui3.u02HW.AVmEbs/c/1Y5H8Qt9FhahDSTk6";
+    private static final String USER_PASSWORD_HASH = "$2a$10$ZcMRrvgU5AYIZLf0t4ewJe8Eb3kxgtPwCLmpZ8ch2rtdLqZt/tknu";
+    private static final String ADMIN_PASSWORD_HASH = "$2a$10$Mpo1EJkbXeBW2KV9bWiObuWH0xZAOU5tleAk2tGmxN6MV86b5ReLS";
 
     private UserRepository userRepository;
     private RoomRepository roomRepository;
@@ -44,7 +44,7 @@ public class DataSeeder implements CommandLineRunner {
                 .role(UserRole.USER)
                 .build());
 
-        // Администратор — пароль admin1
+        // Администратор — пароль Admin123
         userRepository.save(User.builder()
                 .name("Admin")
                 .email("admin@admin.com")

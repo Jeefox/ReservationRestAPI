@@ -6,7 +6,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 public class DataSeederTest {
     @Test
     void generatePasswordHash() {
-        String hash = new BCryptPasswordEncoder().encode("password1");
+        String hash = new BCryptPasswordEncoder().encode("Admin123");
         System.out.println("HASH: " + hash);
     }
 }
