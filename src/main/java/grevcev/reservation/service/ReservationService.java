@@ -138,9 +138,15 @@ public class ReservationService {
 
         boolean isOwner = found.getUser().getId().equals(currentUser.getId());
         boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
-        if (!isOwner && !isAdmin) throw new AccessDeniedException("Вы не владелец этой брони");
 
-        reservationRepository.delete(found);
+        if (!isOwner && !isAdmin) throw new AccessDeniedException("Доступ к этой операции запрещен");
+
+        if(!found.getStatus().canTransitionTo(ReservationStatus.DELETED)){
+            throw new InvalidStatusTransitionException(found.getStatus(), ReservationStatus.DELETED);
+        }
+
+        found.setStatus(ReservationStatus.DELETED);
+        reservationRepository.save(found);
     }
 
     @Transactional(readOnly = true)

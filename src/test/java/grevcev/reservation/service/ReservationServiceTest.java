@@ -307,7 +307,10 @@ class ReservationServiceTest {
 
         reservationService.deleteReservationById(10L, "ivan@email.com");
 
-        verify(reservationRepository).delete(reservation);
+        verify(reservationRepository).save(argThat(r ->
+                r.getStatus() == ReservationStatus.DELETED
+        ));
+        verify(reservationRepository, never()).delete(any(Reservation.class));
     }
 
     @Test
@@ -362,7 +365,10 @@ class ReservationServiceTest {
 
         reservationService.deleteReservationById(10L, "admin@admin.com");
 
-        verify(reservationRepository).delete(reservation);
+        verify(reservationRepository).save(argThat(r ->
+                r.getStatus() == ReservationStatus.DELETED
+        ));
+        verify(reservationRepository, never()).delete(any(Reservation.class));
     }
 
     // ============== changeStatus ==============

@@ -2,6 +2,8 @@ package grevcev.reservation;
 
 import com.jayway.jsonpath.JsonPath;
 import grevcev.AbstractIntegrationTest;
+import grevcev.notification.repository.NotificationRepository;
+import grevcev.reservation.repository.ReservationRepository;
 import grevcev.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,9 +14,18 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import grevcev.reservation.model.Reservation;
+import grevcev.notification.model.NotificationEntity;
 
+import java.util.UUID;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +55,12 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
     // Внедряем репозиторий для проверки реального состояния БД (side effects)
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ReservationRepository reservationRepository;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
 
     @Test
     void fullBookingFlow_withRolesAndConflict() throws Exception {
@@ -328,5 +345,168 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
                 }
                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    // ============== Issue #5: Soft Delete Tests ==============
+
+    // ============== Issue #5: Soft Delete Tests ==============
+
+    @Test
+    void softDelete_preservesReservationInDbWithDeletedStatus() throws Exception {
+        String email = "owner_sd1_" + System.currentTimeMillis() + "@test.com";
+        registerUser("Owner", email, "Password123");
+        String token = login(email, "Password123");
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        long roomId = createRoomAsAdmin(adminToken);
+
+        MockHttpServletResponse reservationResponse = mockMvc.perform(post("/api/v1/reservations")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roomId\": " + roomId + ", \"startDate\": \"2027-05-01\", \"endDate\": \"2027-05-05\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse();
+
+        // 👇 ИСПРАВЛЕНО: безопасное приведение типов 👇
+        Long reservationId = ((Number) JsonPath.read(reservationResponse.getContentAsString(), "$.id")).longValue();
+
+        mockMvc.perform(delete("/api/v1/reservations/" + reservationId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        Reservation deleted = reservationRepository.findById(reservationId).orElseThrow();
+        assertThat(deleted.getStatus()).isEqualTo(ReservationStatus.DELETED);
+    }
+
+    @Test
+    void softDelete_allowsNotificationFkToRemainValid() throws Exception {
+        String email = "owner_sd2_" + System.currentTimeMillis() + "@test.com";
+        registerUser("Owner2", email, "Password123");
+        String token = login(email, "Password123");
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        long roomId = createRoomAsAdmin(adminToken);
+
+        MockHttpServletResponse reservationResponse = mockMvc.perform(post("/api/v1/reservations")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roomId\": " + roomId + ", \"startDate\": \"2027-06-01\", \"endDate\": \"2027-06-05\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse();
+
+        Long reservationId = ((Number) JsonPath.read(reservationResponse.getContentAsString(), "$.id")).longValue();
+
+        // 1. Коммитим, чтобы Kafka-консьюмер (в другом потоке) увидел эту бронь и создал уведомление
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
+        // 2. Ждем, пока консьюмер отработает
+        await()
+                .atMost(5, TimeUnit.SECONDS)
+                .pollInterval(200, TimeUnit.MILLISECONDS)
+                .until(() -> !findNotificationsByReservationId(reservationId).isEmpty());
+
+        List<NotificationEntity> notifications = findNotificationsByReservationId(reservationId);
+        assertThat(notifications).hasSize(1);
+        UUID notificationId = notifications.get(0).getId();
+
+        // 3. Выполняем Soft Delete
+        mockMvc.perform(delete("/api/v1/reservations/" + reservationId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        // 4. ASSERTIONS (Проверки)
+
+        // Проверяем, что уведомление существует (FK валиден, запись не упала)
+        NotificationEntity notification = notificationRepository.findById(notificationId).orElseThrow();
+        assertThat(notification).isNotNull();
+
+        // 👇 ИСПРАВЛЕНО: Запрашиваем бронь напрямую, избегая LazyInitializationException
+        Reservation deletedReservation = reservationRepository.findById(reservationId).orElseThrow();
+
+        assertThat(deletedReservation.getStatus()).isEqualTo(ReservationStatus.DELETED);
+    }
+
+    @Test
+    void kafkaConsumer_skipsNotificationForDeletedReservation() throws Exception {
+        String email = "owner_sd3_" + System.currentTimeMillis() + "@test.com";
+        registerUser("Owner3", email, "Password123");
+        String token = login(email, "Password123");
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        long roomId = createRoomAsAdmin(adminToken);
+
+        MockHttpServletResponse reservationResponse = mockMvc.perform(post("/api/v1/reservations")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roomId\": " + roomId + ", \"startDate\": \"2027-07-01\", \"endDate\": \"2027-07-05\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse();
+
+        Long reservationId = ((Number) JsonPath.read(reservationResponse.getContentAsString(), "$.id")).longValue();
+
+        mockMvc.perform(delete("/api/v1/reservations/" + reservationId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        await()
+                .during(2, TimeUnit.SECONDS)
+                .atMost(3, TimeUnit.SECONDS)
+                .until(() -> true);
+
+        List<NotificationEntity> notifications = findNotificationsByReservationId(reservationId);
+        assertThat(notifications).isEmpty();
+    }
+
+    @Test
+    void softDelete_notOwner_throws403() throws Exception {
+        String ownerEmail = "owner_sd4_" + System.currentTimeMillis() + "@test.com";
+        registerUser("Owner4", ownerEmail, "Password123");
+        String ownerToken = login(ownerEmail, "Password123");
+        String adminToken = login("integ-admin@test.com", "password1");
+
+        long roomId = createRoomAsAdmin(adminToken);
+
+        MockHttpServletResponse reservationResponse = mockMvc.perform(post("/api/v1/reservations")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roomId\": " + roomId + ", \"startDate\": \"2027-08-01\", \"endDate\": \"2027-08-05\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse();
+
+        // 👇 ИСПРАВЛЕНО (именно здесь падал тест) 👇
+        Long reservationId = ((Number) JsonPath.read(reservationResponse.getContentAsString(), "$.id")).longValue();
+
+        String attackerEmail = "attacker_sd4_" + System.currentTimeMillis() + "@test.com";
+        registerUser("Attacker4", attackerEmail, "Password123");
+        String attackerToken = login(attackerEmail, "Password123");
+
+        mockMvc.perform(delete("/api/v1/reservations/" + reservationId)
+                        .header("Authorization", "Bearer " + attackerToken))
+                .andExpect(status().isForbidden());
+
+        Reservation unchanged = reservationRepository.findById(reservationId).orElseThrow();
+        assertThat(unchanged.getStatus()).isNotEqualTo(ReservationStatus.DELETED);
+    }
+
+    // Вспомогательный метод (остается без изменений, так как reservationId — это Long)
+    private List<NotificationEntity> findNotificationsByReservationId(Long reservationId) {
+        return notificationRepository.findAll().stream()
+                .filter(n -> n.getReservation() != null
+                        && n.getReservation().getId().equals(reservationId))
+                .toList();
+    }
+
+    // Вспомогательный метод для создания комнаты админом
+    private Long createRoomAsAdmin(String adminToken) throws Exception {
+        MockHttpServletResponse roomResponse = mockMvc.perform(post("/api/v1/rooms")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"test-room\",\"capacity\":2}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse();
+
+        // Явно приводим к Number и вызываем longValue() для безопасности
+        return ((Number) JsonPath.read(roomResponse.getContentAsString(), "$.id")).longValue();
     }
 }
