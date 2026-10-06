@@ -346,7 +346,6 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
                 """))
                 .andExpect(status().isForbidden());
     }
-
     // ============== Issue #5: Soft Delete Tests ==============
 
     // ============== Issue #5: Soft Delete Tests ==============
@@ -509,4 +508,4 @@ class ReservationApiIntegrationTest extends AbstractIntegrationTest {
         // Явно приводим к Number и вызываем longValue() для безопасности
         return ((Number) JsonPath.read(roomResponse.getContentAsString(), "$.id")).longValue();
     }
-}
+ }
