@@ -1,7 +1,5 @@
 package grevcev.kafka.service;
 
-import grevcev.kafka.handler.ReservationApprovedHandler;
-import grevcev.kafka.handler.ReservationCancelledHandler;
 import grevcev.kafka.handler.ReservationCreatedHandler;
 import grevcev.kafka.event.KafkaEventEnvelope;
 import grevcev.kafka.repository.ProcessedEventRepository;
@@ -17,40 +15,18 @@ public class KafkaEventProcessingService {
     private final ProcessedEventRepository repository;
     private final static Logger log = LoggerFactory.getLogger(KafkaEventProcessingService.class);
     private final ReservationCreatedHandler createdHandler;
-    private final ReservationApprovedHandler approvedHandler;
-    private final ReservationCancelledHandler cancelledHandler;
-
-    public KafkaEventProcessingService(ProcessedEventRepository repository,
-                                       ReservationCreatedHandler createdHandler,
-                                       ReservationApprovedHandler reservationApprovedHandler,
-                                       ReservationCancelledHandler cancelledHandler) {
+    public KafkaEventProcessingService(ProcessedEventRepository repository, ReservationCreatedHandler createdHandler) {
         this.repository = repository;
         this.createdHandler = createdHandler;
-        this.approvedHandler = reservationApprovedHandler;
-        this.cancelledHandler = cancelledHandler;
-
     }
 
     @Transactional
     public void processEvent(KafkaEventEnvelope envelope) {
-        switch (envelope.eventType()) {
-            case RESERVATION_CREATED -> {
-                if (tryRegisterEvent(envelope)) return;
-                createdHandler.handle(envelope);
-            }
-            case RESERVATION_APPROVED -> {
-                if (tryRegisterEvent(envelope)) return;
-                approvedHandler.handle(envelope);
-            }
-            case RESERVATION_CANCELLED -> {
-                if (tryRegisterEvent(envelope)) return;
-                cancelledHandler.handle(envelope);
-            }
-            default -> {
-                log.error("Unsupported Kafka event type: {}", envelope.eventType());
-                throw new IllegalStateException();
-            }
+        if (envelope == null || envelope.eventId() == null || envelope.eventType() == null || envelope.payload() == null) {
+            throw new IllegalArgumentException("Incomplete Kafka event envelope");
         }
+        if (tryRegisterEvent(envelope)) return;
+        createdHandler.handle(envelope);
     }
 
     private boolean tryRegisterEvent(KafkaEventEnvelope envelope) {

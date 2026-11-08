@@ -38,6 +38,4 @@ public class NotificationEntity {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "sent_at")
-    private LocalDateTime sentAt;
 }

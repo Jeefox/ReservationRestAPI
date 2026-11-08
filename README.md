@@ -55,15 +55,15 @@ Dev-профиль использует PostgreSQL на `localhost:5432`, баз
 
 ### Production
 
-Production требует внешний JWT-секрет:
+Production требует внешние `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` и `KAFKA_BOOTSTRAP_SERVERS`.
+Запуск после их настройки:
 
 ```bash
-export JWT_SECRET="<secret длиной не менее 256 бит>"
-docker compose up -d postgres kafka
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-В production Swagger отключён. Значения подключения к БД и секреты необходимо задавать через конфигурацию окружения или secret manager; демонстрационные dev-учётные данные нельзя использовать в production.
+Swagger отключён; dev-профиль автоматически не активируется. Локальный Compose не предназначен для production.
+[Первый ADMIN, старые аккаунты, Kafka DLT, повторы и очистка outbox](docs/operations.md).
 
 ## API
 
@@ -119,20 +119,29 @@ Content-Type: application/json
 
 {
   "roomId": 1,
-  "startDate": "2027-05-01",
-  "endDate": "2027-05-05"
+  "startDate": "<будущая дата YYYY-MM-DD>",
+  "endDate": "<дата позже startDate YYYY-MM-DD>"
 }
 ```
 
 Статусы брони: `PENDING`, `APPROVED`, `CANCELLED`, `DELETED`. Переход в `APPROVED` доступен только администратору.
 
+Интервалы дат — `[startDate, endDate)`: конец строго позже начала; соседние брони допустимы.
+Создание и PUT требуют startDate не раньше сегодня. Брони с startDate раньше сегодня, а также CANCELLED и DELETED нельзя редактировать;
+допустимая смена статуса исторической брони разрешена. Изменение комнаты или дат APPROVED возвращает её в PENDING.
+Конкурентное изменение одной брони возвращает 409; перед повтором перечитайте запись.
+
+Поиск `from` отдельно означает `endDate > from`, `to` отдельно — `startDate < to`.
+Обе границы должны удовлетворять `from < to`, иначе 400. Статистика использует те же границы и считает
+только PENDING/APPROVED; комнаты с нулём бронирований отсутствуют. Это количество броней, а не занятых суток.
+Вместимость комнаты — справочная характеристика; бронирование занимает комнату целиком, число гостей не задаётся.
+
 ### Пользователи
 
 | Метод | Endpoint | Доступ |
 |---|---|---|
-| `GET` | `/api/v1/users` | Авторизованный пользователь |
-| `GET` | `/api/v1/users/{id}` | Авторизованный пользователь |
-| `POST` | `/api/v1/users` | Устаревший маршрут; для создания аккаунта используйте `/auth/register` |
+| `GET` | `/api/v1/users` | `ADMIN` |
+| `GET` | `/api/v1/users/{id}` | Владелец профиля или `ADMIN` |
 | `PUT` | `/api/v1/users/{id}` | Владелец профиля или `ADMIN` |
 | `DELETE` | `/api/v1/users/{id}` | `ADMIN` |
 
@@ -144,8 +153,16 @@ Content-Type: application/json
 
 Unit- и controller-тесты запускаются локально. Интеграционные тесты используют Testcontainers и требуют работающий Docker daemon; они поднимают PostgreSQL и Kafka автоматически.
 
+Smoke-проверка dev-профиля на пустой PostgreSQL и Kafka с реальным HTTP:
+
+```bash
+./mvnw -Dtest=DevProfileIntegrationTest test
+```
+
 ## Postman
 
+Коллекцию запускайте по порядку через Collection Runner на dev-профиле: она создаёт отдельную комнату,
+получает JWT пользователя/администратора и вычисляет будущие даты.
 Актуальная коллекция находится в [`docs/postman-collection.json`](docs/postman-collection.json). Все запросы к приложению используют порт `8085`, получают JWT через `/api/v1/auth/login` и передают его в `Authorization`.
 
 ## Структура

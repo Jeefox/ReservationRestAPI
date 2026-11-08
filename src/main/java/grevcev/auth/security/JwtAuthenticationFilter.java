@@ -1,6 +1,11 @@
 package grevcev.auth.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,10 +21,13 @@ import java.io.IOException;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+    private final SecurityErrorWriter errors;
     private final JwtService jwtService;
     private final ReservationUserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, ReservationUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, ReservationUserDetailsService userDetailsService, SecurityErrorWriter errors) {
+        this.errors = errors;
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
     }
@@ -41,7 +49,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // 3. Парсим — jjwt кинет, если токен подделан/просрочен
             Claims claims = jwtService.parseToken(token);
             String email = claims.getSubject();
-            String role = claims.get("role", String.class);
 
             // 4. Загружаем юзера из БД (чтобы Security видел UserDetails с ролями)
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
@@ -54,12 +61,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             userDetails.getAuthorities()
                     );
             SecurityContextHolder.getContext().setAuthentication(auth);
-        } catch (Exception e) {
-            // Токен невалиден — НЕ кладём ничего в контекст,
-            // дальше AuthorizationFilter вернет 401/403
+        } catch (JwtException | IllegalArgumentException | UsernameNotFoundException ex) {
+            SecurityContextHolder.clearContext();
+            errors.write(response, 401, "Invalid or expired token");
+            return;
+        } catch (DataAccessException ex) {
+            SecurityContextHolder.clearContext();
+            log.error("Database failure during JWT authentication", ex);
+            errors.write(response, 503, "Authentication service unavailable");
+            return;
         }
 
-        // 6. Всегда идем дальше по цепочке (не блокируем запрос на уровне фильтра)
+        // Продолжаем цепочку после успешной аутентификации.
         filterChain.doFilter(request, response);
     }
 }

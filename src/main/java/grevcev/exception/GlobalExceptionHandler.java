@@ -114,4 +114,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new ApiError(403, ex.getMessage(),  LocalDateTime.now(), null));
     }
+    @ExceptionHandler(InvalidDateRangeException.class)
+    public ResponseEntity<ApiError> handleDateRange(InvalidDateRangeException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ApiError(400, ex.getMessage(), LocalDateTime.now(), null));
+    }
+
+    @ExceptionHandler(ReservationEditConflictException.class)
+    public ResponseEntity<ApiError> handleEditConflict(ReservationEditConflictException ex) {
+        return ResponseEntity.status(409)
+                .body(new ApiError(409, ex.getMessage(), LocalDateTime.now(), null));
+    }
+
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleConcurrentChange(Exception ex) {
+        return ResponseEntity.status(409)
+                .body(new ApiError(409, "Бронь уже изменена другим запросом; перечитайте её", LocalDateTime.now(), null));
+    }
 }

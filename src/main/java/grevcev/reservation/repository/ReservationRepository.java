@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import grevcev.reservation.ReservationStatus;
 import grevcev.room.dto.RoomStatsResponse;
 import grevcev.reservation.model.Reservation;
 
@@ -20,15 +19,20 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
     @Query("select r from Reservation r join fetch r.user join fetch r.room")
     List<Reservation> findAllWithAssociations();
 
-    @Query("select r from Reservation r where r.room.id = :roomId and r.startDate<:endDate and :startDate< r.endDate " +
-            "and r.status <> :cancelledStatus and (:excludedId is null or r.id <> :excludedId)")
-    List<Reservation> findConflictingReservations(@Param("roomId")Long roomId, @Param("startDate") LocalDate startDate,
-                                                @Param("endDate")LocalDate endDate,
-                                                @Param("cancelledStatus") ReservationStatus cancelledStatus,
-                                                @Param("excludedId") Long excludedId);
+    @Query(value = """
+            select exists(select 1 from reservations r
+            where r.room_id = :roomId and r.start_date < :endDate and r.end_date > :startDate
+              and r.status in ('PENDING', 'APPROVED')
+              and (:excludedId is null or r.id <> :excludedId))
+            """, nativeQuery = true)
+    boolean existsConflictingReservation(@Param("roomId") Long roomId,
+                                         @Param("startDate") LocalDate startDate,
+                                         @Param("endDate") LocalDate endDate,
+                                         @Param("excludedId") Long excludedId);
 
+    @Override
     @EntityGraph(attributePaths = {"user", "room"})
-    Page<Reservation> findAllBy(Specification<Reservation> spec, Pageable pageable);
+    Page<Reservation> findAll(Specification<Reservation> spec, Pageable pageable);
 
     @Query("""
     select new grevcev.room.dto.RoomStatsResponse(
@@ -37,8 +41,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
         count(r)
     )
     from Reservation r
-    where (:from is null or r.endDate >= :from)
-      and (:to is null or r.startDate <= :to)
+    where (cast(:from as date) is null or r.endDate > :from)
+      and (cast(:to as date) is null or r.startDate < :to)
+      and r.status in (grevcev.reservation.ReservationStatus.PENDING, grevcev.reservation.ReservationStatus.APPROVED)
     group by r.room.id, r.room.name
     order by count(r) desc
     """)

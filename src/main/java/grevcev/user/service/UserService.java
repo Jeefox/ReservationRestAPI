@@ -1,6 +1,5 @@
 package grevcev.user.service;
 
-import grevcev.user.dto.CreateUserRequest;
 import grevcev.user.dto.UpdateUserRequest;
 import grevcev.user.dto.UserResponse;
 import grevcev.user.model.ReservationUserDetails;
@@ -29,21 +28,19 @@ public class UserService {
 
     @Transactional(readOnly=true)
     public Page<UserResponse> findAll(Pageable pageable) {
+        if (!isAdmin(getCurrentUser())) {
+            throw new AccessDeniedException("Список пользователей доступен только администратору");
+        }
         return userRepository.findAll(pageable).map(this::toResponse);
     }
 
     @Transactional(readOnly=true)
     public UserResponse findById(Long id) {
+        ReservationUserDetails currentUser = getCurrentUser();
+        if (!isAdmin(currentUser) && !currentUser.getId().equals(id)) {
+            throw new AccessDeniedException("Доступ к чужому профилю запрещён");
+        }
         return toResponse(userRepository.findById(id).orElseThrow(()-> new UserNotFoundException(id)));
-    }
-
-    @Transactional
-    public UserResponse save(CreateUserRequest request) {
-        User user = User.builder()
-                .name(request.name())
-                .email(request.email())
-                .build();
-        return toResponse(userRepository.save(user));
     }
 
     private UserResponse toResponse(User user){
@@ -76,15 +73,8 @@ public class UserService {
         userRepository.delete(user);
     }
 
-    private Long getCurrentUserId(){
-        Authentication auth = SecurityContextHolder
-                .getContext()
-                .getAuthentication();
-
-        ReservationUserDetails details =
-                (ReservationUserDetails) auth.getPrincipal();
-
-        return details.getId();
+    private boolean isAdmin(ReservationUserDetails user) {
+        return user.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
     }
 
     private ReservationUserDetails getCurrentUser(){

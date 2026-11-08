@@ -19,9 +19,9 @@ public class ReservationKafkaConsumer {
     }
 
     @KafkaListener(
-            topics = "reservations",
-            groupId = "reservation-test-2",
-            concurrency = "2"
+            topics = "${app.kafka.topic:reservations}",
+            groupId = "${app.kafka.group-id:reservation-service}",
+            concurrency = "${app.kafka.concurrency:2}"
     )
     public void consume(
             ConsumerRecord<String, KafkaEventEnvelope> record

@@ -1,7 +1,6 @@
 package grevcev.reservation.service;
 
 import grevcev.exception.*;
-import grevcev.kafka.producer.ReservationKafkaProducer;
 import grevcev.outbox.service.OutboxService;
 import grevcev.reservation.dto.*;
 import grevcev.room.dto.RoomStatsResponse;
@@ -16,9 +15,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import grevcev.reservation.ReservationStatus;
-import grevcev.kafka.event.ReservationCreatedKafkaEvent;
 import grevcev.reservation.event.ReservationStatusChangedEvent;
-import grevcev.reservation.event.ReservationCreatedEvent;
 import grevcev.reservation.model.Reservation;
 import grevcev.reservation.model.ReservationSpecifications;
 import grevcev.room.model.Room;
@@ -30,7 +27,6 @@ import grevcev.user.repository.UserRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Slf4j
 @Service
@@ -70,9 +66,9 @@ public class ReservationService {
                 .orElseThrow(()->new UserNotFoundException());
         Room room = roomRepository.findByIdForUpdate(request.roomId()).orElseThrow(()->new RoomNotFoundException(request.roomId()));
 
-        List<Reservation> conflicting = reservationRepository.findConflictingReservations(room.getId(), request.startDate(),
-                request.endDate(), ReservationStatus.CANCELLED, null);
-        if(!conflicting.isEmpty()) throw new RoomAlreadyBookedException(room.getId(), request.startDate(), request.endDate());
+        if (reservationRepository.existsConflictingReservation(room.getId(), request.startDate(), request.endDate(), null)) {
+            throw new RoomAlreadyBookedException(room.getId(), request.startDate(), request.endDate());
+        }
 
         Reservation reservation = Reservation.builder()
                 .user(user)
@@ -113,13 +109,27 @@ public class ReservationService {
         boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
         if (!isOwner && !isAdmin) throw new AccessDeniedException("Вы не владелец этой брони");
 
+        if (found.getStatus() == ReservationStatus.CANCELLED || found.getStatus() == ReservationStatus.DELETED) {
+            throw new ReservationEditConflictException("Отменённую или удалённую бронь нельзя редактировать");
+        }
+        if (found.getStartDate().isBefore(LocalDate.now())) {
+            throw new ReservationEditConflictException("Начавшуюся бронь нельзя редактировать");
+        }
+
         Room room = roomRepository.findByIdForUpdate(request.roomId())
                 .orElseThrow(() -> new RoomNotFoundException(request.roomId()));
+        if (reservationRepository.existsConflictingReservation(request.roomId(), request.startDate(), request.endDate(), id)) {
+            throw new RoomAlreadyBookedException(request.roomId(), request.startDate(), request.endDate());
+        }
 
-        List<Reservation> conflicting = reservationRepository.findConflictingReservations(request.roomId(), request.startDate(),
-                request.endDate(), ReservationStatus.CANCELLED, id);
-
-        if(!conflicting.isEmpty()) throw new RoomAlreadyBookedException(request.roomId(), request.startDate(), request.endDate());
+        boolean changed = !found.getRoom().getId().equals(request.roomId())
+                || !found.getStartDate().equals(request.startDate())
+                || !found.getEndDate().equals(request.endDate());
+        if (changed && found.getStatus() == ReservationStatus.APPROVED) {
+            found.setStatus(ReservationStatus.PENDING);
+            applicationEventPublisher.publishEvent(new ReservationStatusChangedEvent(
+                    found.getId(), ReservationStatus.APPROVED, ReservationStatus.PENDING));
+        }
 
         found.setRoom(room);
         found.setStartDate(request.startDate());
@@ -153,6 +163,7 @@ public class ReservationService {
     public Page<ReservationResponse> search(Long userId, Long roomId, ReservationStatus status,
                                             LocalDate from, LocalDate to, Pageable pageable, String email) {
 
+        validateSearchRange(from, to);
         User currentUser = userRepository.findByEmail(email)
                 .orElseThrow(UserNotFoundException::new);
         boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
@@ -172,9 +183,9 @@ public class ReservationService {
 
         if (roomId != null) specifications.add(ReservationSpecifications.hasRoomId(roomId));
         if (status != null) specifications.add(ReservationSpecifications.hasStatus(status));
-        if (from != null && to != null) specifications.add(ReservationSpecifications.overlapsWith(from, to));
+        if (from != null || to != null) specifications.add(ReservationSpecifications.overlapsWith(from, to));
 
-        return reservationRepository.findAllBy(Specification.allOf(specifications), pageable).map(this::toResponse);
+        return reservationRepository.findAll(Specification.allOf(specifications), pageable).map(this::toResponse);
     }
 
     @Transactional
@@ -212,8 +223,14 @@ public class ReservationService {
         return currentStatus;
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<RoomStatsResponse> getStats(LocalDate from, LocalDate to) {
-        return  reservationRepository.getStats(from, to);
+        validateSearchRange(from, to);
+        return reservationRepository.getStats(from, to);
+    }
+    private void validateSearchRange(LocalDate from, LocalDate to) {
+        if (from != null && to != null && !from.isBefore(to)) {
+            throw new InvalidDateRangeException();
+        }
     }
 }
