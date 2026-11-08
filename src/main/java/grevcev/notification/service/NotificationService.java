@@ -8,16 +8,14 @@ import grevcev.reservation.model.Reservation;
 import grevcev.reservation.repository.ReservationRepository;
 import grevcev.user.model.User;
 import grevcev.user.repository.UserRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
 public class NotificationService {
-    private final static Logger log = LoggerFactory.getLogger(NotificationService.class);
     private final UserRepository userRepository;
     private final ReservationRepository reservationRepository;
     private final NotificationRepository notificationRepository;
@@ -29,9 +27,11 @@ public class NotificationService {
         this.notificationRepository = notificationRepository;
     }
 
+    @Transactional
     public void createReservationCreatedNotification(UUID eventId, ReservationCreatedKafkaEvent event) {
         Reservation reservation = reservationRepository.findById(event.reservationId())
                 .orElseThrow(()->new RuntimeException("Reservation not found!"));
+
         User user = userRepository.findById(event.userId())
                 .orElseThrow(()-> new RuntimeException("User not found!"));
 
@@ -41,7 +41,7 @@ public class NotificationService {
                 .user(user)
                 .reservation(reservation)
                 .createdAt(LocalDateTime.now())
-                .status(NotificationStatus.PENDING)
+                .status(NotificationStatus.RECORDED)
                 .build();
 
         notificationRepository.save(notification);

@@ -1,374 +1,344 @@
 {
   "info": {
-    "_postman_id": "92c7c861-8506-4921-aa3d-4d3876d22235",
-    "name": "Testing",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "18770400"
+    "name": "ReservationRestAPI — dev flow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8085"
+    }
+  ],
   "item": [
     {
-      "name": "Post Request1",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 201 Created\", () => {\r",
-              "    pm.response.to.have.status(201);\r",
-              "});\r",
-              "pm.environment.set(\"bronId\", pm.response.json().id);"
-            ],
-            "type": "text/javascript",
-            "packages": {},
-            "requests": {}
-          }
-        }
-      ],
+      "name": "01 Login admin",
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/auth/login",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 1,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-15\",\r\n  \"endDate\": \"2026-12-18\",\r\n  \"status\": \"PENDING\"\r\n}",
+          "raw": "{\n  \"email\": \"admin@admin.com\",\n  \"password\": \"Admin123\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations"
-          ]
         }
       },
-      "response": []
-    },
-    {
-      "name": "New Request2",
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "  const start = new Date(); start.setUTCDate(start.getUTCDate() + 30);",
+              "  const end = new Date(start); end.setUTCDate(end.getUTCDate() + 3);",
+              "  pm.collectionVariables.set(\"startDate\", start.toISOString().slice(0, 10));",
+              "  pm.collectionVariables.set(\"endDate\", end.toISOString().slice(0, 10));"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 409 Conflict\", () => {\r",
-              "    pm.response.to.have.status(409);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "02 Create room",
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/rooms",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 2,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-17\",\r\n  \"endDate\": \"2026-12-22\",\r\n  \"status\": \"PENDING\"\r\n}",
+          "raw": "{\n  \"name\": \"Postman {{$guid}}\",\n  \"capacity\": 2\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations"
-          ]
         }
       },
-      "response": []
-    },
-    {
-      "name": "New Request3",
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 201 Created\", () => {\r",
-              "    pm.response.to.have.status(201);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set(\"roomId\", pm.response.json().id);"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "03 Login user",
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/auth/login",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 2,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-18\",\r\n  \"endDate\": \"2026-12-22\",\r\n  \"status\": \"PENDING\"\r\n}",
+          "raw": "{\n  \"email\": \"ivan@email.com\",\n  \"password\": \"password1\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations"
-          ]
         }
       },
-      "response": []
-    },
-    {
-      "name": "New Request4",
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 201 Created\", () => {\r",
-              "    pm.response.to.have.status(201);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "04 Create reservation",
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/reservations",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 1,\r\n  \"roomId\": 2,\r\n  \"startDate\": \"2026-12-15\",\r\n  \"endDate\": \"2026-12-18\",\r\n  \"status\": \"PENDING\"\r\n}",
+          "raw": "{\n  \"roomId\": {{roomId}},\n  \"startDate\": \"{{startDate}}\",\n  \"endDate\": \"{{endDate}}\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations"
-          ]
         }
       },
-      "response": []
-    },
-    {
-      "name": "New Request5",
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 200 OK\", () => {\r",
-              "    pm.response.to.have.status(200);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set(\"reservationId\", pm.response.json().id);"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "05 Search from only",
       "request": {
-        "method": "PUT",
+        "method": "GET",
         "header": [],
-        "body": {
-          "mode": "raw",
-          "raw": "{\r\n  \"userId\": 1,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-15\",\r\n  \"endDate\": \"2026-12-18\",\r\n  \"status\": \"CANCELLED\"\r\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations/1",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations",
-            "1"
-          ]
-        }
+        "url": "{{baseUrl}}/api/v1/reservations?roomId={{roomId}}&from={{startDate}}&sort=startDate,asc"
       },
-      "response": []
-    },
-    {
-      "name": "New Request6",
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 201 Created\", () => {\r",
-              "    pm.response.to.have.status(201);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "06 Login admin",
       "request": {
         "method": "POST",
-        "header": [],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/auth/login",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 2,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-15\",\r\n  \"endDate\": \"2026-12-18\",\r\n  \"status\": \"PENDING\"\r\n}",
+          "raw": "{\n  \"email\": \"admin@admin.com\",\n  \"password\": \"Admin123\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations"
-          ]
         }
       },
-      "response": []
-    },
-    {
-      "name": "New Request7",
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 200 OK\", () => {\r",
-              "    pm.response.to.have.status(200);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "07 Approve",
       "request": {
-        "method": "PUT",
-        "header": [],
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/reservations/{{reservationId}}/status",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 2,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-18\",\r\n  \"endDate\": \"2026-12-22\",\r\n  \"status\": \"APPROVED\"\r\n}",
+          "raw": "{\n  \"status\": \"APPROVED\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations/2",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations",
-            "2"
-          ]
         }
       },
-      "response": []
-    },
-    {
-      "name": "New Request Copy8",
       "event": [
         {
           "listen": "test",
           "script": {
-            "exec": [
-              "pm.test(\"Ожидаем 409 Conflict\", () => {\r",
-              "    pm.response.to.have.status(409);\r",
-              "});"
-            ],
             "type": "text/javascript",
-            "packages": {},
-            "requests": {}
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
           }
         }
-      ],
+      ]
+    },
+    {
+      "name": "08 Login owner",
       "request": {
-        "method": "PUT",
-        "header": [],
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/auth/login",
         "body": {
           "mode": "raw",
-          "raw": "{\r\n  \"userId\": 2,\r\n  \"roomId\": 1,\r\n  \"startDate\": \"2026-12-15\",\r\n  \"endDate\": \"2026-12-18\",\r\n  \"status\": \"APPROVED\"\r\n}",
+          "raw": "{\n  \"email\": \"ivan@email.com\",\n  \"password\": \"password1\"\n}",
           "options": {
             "raw": {
               "language": "json"
             }
           }
-        },
-        "url": {
-          "raw": "http://localhost:8080/api/v1/reservations/2",
-          "protocol": "http",
-          "host": [
-            "localhost"
-          ],
-          "port": "8080",
-          "path": [
-            "api",
-            "v1",
-            "reservations",
-            "2"
-          ]
         }
       },
-      "response": []
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.collectionVariables.set(\"token\", pm.response.json().token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Cancel",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/reservations/{{reservationId}}/status",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"CANCELLED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Soft delete",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/reservations/{{reservationId}}"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

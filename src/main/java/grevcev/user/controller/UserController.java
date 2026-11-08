@@ -9,14 +9,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import grevcev.user.dto.CreateUserRequest;
 import grevcev.reservation.dto.PageResponse;
 import grevcev.user.dto.UpdateUserRequest;
 import grevcev.user.dto.UserResponse;
 import grevcev.user.service.UserService;
 
-import java.net.URI;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -50,31 +47,6 @@ public class UserController {
     public PageResponse<UserResponse> getUsers(
             @PageableDefault(size = 20, sort = "name") Pageable pageable){
         return PageResponse.from(userService.findAll(pageable));
-    }
-
-    @Operation(
-            summary = "Создать пользователя",
-            description = """
-            Создаёт нового пользователя. Email должен быть уникальным — при дубликате
-            возвращается 409 (защита уникального индекса БД).
-            """
-    )
-    @ApiResponse(responseCode = "201", description = "Пользователь создан")
-    @ApiResponse(responseCode = "400", description = "Ошибка валидации (некорректный email, пустое имя)")
-    @ApiResponse(responseCode = "409", description = "Пользователь с таким email уже существует")
-    @PostMapping
-    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request){
-        UserResponse created = userService.save(request);
-        return ResponseEntity
-                .created(buildLocation(created.id()))
-                .body(created);
-    }
-
-    private URI buildLocation(Long id) {
-        return ServletUriComponentsBuilder.fromCurrentRequest()   // /api/v1/users
-                .path("/{id}")                                     // + /5
-                .buildAndExpand(id)
-                .toUri();
     }
 
     @Operation(

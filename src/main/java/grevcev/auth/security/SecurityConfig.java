@@ -8,7 +8,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -35,11 +34,11 @@ public class SecurityConfig {
     }
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new LengthSafePasswordEncoder();
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorWriter errors) throws Exception {
         http
                 // Для REST API с JWT это не нужно (stateless, нет кук)
                 .csrf(csrf -> csrf.disable())
@@ -47,18 +46,23 @@ public class SecurityConfig {
                 // Без сессий — каждый запрос аутентифицируется токеном
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
+                .exceptionHandling(errorsConfig -> errorsConfig
+                        .authenticationEntryPoint((request, response, ex) -> errors.write(response, 401, "Authentication required"))
+                        .accessDeniedHandler((request, response, ex) -> errors.write(response, 403, "Access denied")))
+
                 // Правила доступа
                 .authorizeHttpRequests(auth -> auth
                         // Публичные
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/h2-console/**").permitAll()
 
                         // Админские (СПЕЦИФИЧНЫЕ — ВПЕРЕД!)
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/rooms/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/rooms/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/rooms/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/users/**").hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users").hasRole("ADMIN")
 
                         // Общие (В КОНЦЕ!)
                         .requestMatchers("/api/**").authenticated()

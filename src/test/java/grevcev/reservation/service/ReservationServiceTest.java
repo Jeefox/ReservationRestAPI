@@ -60,9 +60,9 @@ class ReservationServiceTest {
         // Сервис теперь резолвит по EMAIL из токена
         when(userRepository.findByEmail("ivan@email.com")).thenReturn(Optional.of(user));
         when(roomRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(room));
-        when(reservationRepository.findConflictingReservations(
-                2L, request.startDate(), request.endDate(), ReservationStatus.CANCELLED, null))
-                .thenReturn(List.of());
+        when(reservationRepository.existsConflictingReservation(
+                2L, request.startDate(), request.endDate(), null))
+                .thenReturn(false);
 
         Reservation saved = Reservation.builder().id(10L).user(user).room(room)
                 .startDate(request.startDate()).endDate(request.endDate())
@@ -125,9 +125,9 @@ class ReservationServiceTest {
 
         when(userRepository.findByEmail("ivan@email.com")).thenReturn(Optional.of(user));
         when(roomRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(room));
-        when(reservationRepository.findConflictingReservations(
-                2L, request.startDate(), request.endDate(), ReservationStatus.CANCELLED, null))
-                .thenReturn(List.of(conflicting));
+        when(reservationRepository.existsConflictingReservation(
+                2L, request.startDate(), request.endDate(), null))
+                .thenReturn(true);
 
         assertThrows(RoomAlreadyBookedException.class,
                 () -> reservationService.createReservation(request, "ivan@email.com"));
@@ -147,9 +147,9 @@ class ReservationServiceTest {
 
         when(userRepository.findByEmail("ivan@email.com")).thenReturn(Optional.of(user));
         when(roomRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(room));
-        when(reservationRepository.findConflictingReservations(
-                2L, request.startDate(), request.endDate(), ReservationStatus.CANCELLED, null))
-                .thenReturn(List.of());
+        when(reservationRepository.existsConflictingReservation(
+                2L, request.startDate(), request.endDate(), null))
+                .thenReturn(false);
 
         Reservation saved = Reservation.builder().id(10L).user(user).room(room)
                 .startDate(request.startDate()).endDate(request.endDate())
@@ -215,14 +215,14 @@ class ReservationServiceTest {
         when(reservationRepository.findById(10L)).thenReturn(Optional.of(reservation));
         when(userRepository.findByEmail("ivan@email.com")).thenReturn(Optional.of(user));
         when(roomRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(room));
-        when(reservationRepository.findConflictingReservations(
-                2L, request.startDate(), request.endDate(), ReservationStatus.CANCELLED, 10L))
-                .thenReturn(List.of());
+        when(reservationRepository.existsConflictingReservation(
+                2L, request.startDate(), request.endDate(), 10L))
+                .thenReturn(false);
 
         reservationService.updateReservation(10L, request, "ivan@email.com");
 
-        verify(reservationRepository).findConflictingReservations(
-                eq(2L), any(), any(), eq(ReservationStatus.CANCELLED), eq(10L));
+        verify(reservationRepository).existsConflictingReservation(
+                eq(2L), any(), any(), eq(10L));
     }
 
     @Test
@@ -281,9 +281,9 @@ class ReservationServiceTest {
                 .status(ReservationStatus.PENDING)
                 .build();
 
-        when(reservationRepository.findConflictingReservations(
-                4L, request.startDate(), request.endDate(), ReservationStatus.CANCELLED, 10L))
-                .thenReturn(List.of(conflicting));
+        when(reservationRepository.existsConflictingReservation(
+                4L, request.startDate(), request.endDate(), 10L))
+                .thenReturn(true);
 
         assertThrows(RoomAlreadyBookedException.class,
                 () -> reservationService.updateReservation(10L, request, "ivan@email.com"));
@@ -307,7 +307,10 @@ class ReservationServiceTest {
 
         reservationService.deleteReservationById(10L, "ivan@email.com");
 
-        verify(reservationRepository).delete(reservation);
+        verify(reservationRepository).save(argThat(r ->
+                r.getStatus() == ReservationStatus.DELETED
+        ));
+        verify(reservationRepository, never()).delete(any(Reservation.class));
     }
 
     @Test
@@ -362,7 +365,10 @@ class ReservationServiceTest {
 
         reservationService.deleteReservationById(10L, "admin@admin.com");
 
-        verify(reservationRepository).delete(reservation);
+        verify(reservationRepository).save(argThat(r ->
+                r.getStatus() == ReservationStatus.DELETED
+        ));
+        verify(reservationRepository, never()).delete(any(Reservation.class));
     }
 
     // ============== changeStatus ==============
@@ -485,8 +491,8 @@ class ReservationServiceTest {
 
     @Test
     void getRoomStats_success() {
-        LocalDate from = LocalDate.of(2026, 12, 1);
-        LocalDate to = LocalDate.of(2026, 12, 31);
+        LocalDate from = grevcev.TestDates.future(12, 1);
+        LocalDate to = grevcev.TestDates.future(12, 31);
 
         when(reservationRepository.getStats(from, to))
                 .thenReturn(List.of(new RoomStatsResponse(1L, "luxury", 3L)));

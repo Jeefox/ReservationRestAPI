@@ -3,6 +3,7 @@ package grevcev.db;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import grevcev.user.model.UserRole;
 import grevcev.room.model.Room;
 import grevcev.user.model.User;
@@ -13,13 +14,12 @@ import grevcev.user.repository.UserRepository;
 @Component
 public class DataSeeder implements CommandLineRunner {
 
-    private static final String USER_PASSWORD_HASH = "$2a$10$he3s1K2JUz0DHagC7UVh/Oosq4u0L6kdcWpARyvnBTtPpEs1FzNDC";
-    private static final String ADMIN_PASSWORD_HASH = "$2a$10$STtJk5kCZi1OVrro8ui3.u02HW.AVmEbs/c/1Y5H8Qt9FhahDSTk6";
-
     private UserRepository userRepository;
     private RoomRepository roomRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public DataSeeder(UserRepository userRepository, RoomRepository roomRepository) {
+    public DataSeeder(UserRepository userRepository, RoomRepository roomRepository, PasswordEncoder passwordEncoder) {
+        this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
         this.roomRepository = roomRepository;
     }
@@ -33,22 +33,22 @@ public class DataSeeder implements CommandLineRunner {
         User ivan = userRepository.save(User.builder()
                 .name("Ivan")
                 .email("ivan@email.com")
-                .password(USER_PASSWORD_HASH)
+                .password(passwordEncoder.encode("password1"))
                 .role(UserRole.USER)
                 .build());
 
         User maria = userRepository.save(User.builder()
                 .name("Maria")
                 .email("maria@email.com")
-                .password(USER_PASSWORD_HASH)
+                .password(passwordEncoder.encode("password1"))
                 .role(UserRole.USER)
                 .build());
 
-        // Администратор — пароль admin1
+        // Администратор — пароль Admin123
         userRepository.save(User.builder()
                 .name("Admin")
                 .email("admin@admin.com")
-                .password(ADMIN_PASSWORD_HASH)
+                .password(passwordEncoder.encode("Admin123"))
                 .role(UserRole.ADMIN)
                 .build());
 

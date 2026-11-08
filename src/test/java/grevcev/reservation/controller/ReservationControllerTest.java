@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ReservationController.class)
-@Import({SecurityConfig.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, GlobalExceptionHandler.class, grevcev.auth.security.SecurityErrorWriter.class})
 class ReservationControllerTest {
 
     @Autowired
@@ -60,15 +60,15 @@ class ReservationControllerTest {
         // СНАЧАЛА when, ПОТОМ perform
         when(reservationService.createReservation(any(), eq("ivan@email.com"))).thenReturn(
                 new ReservationResponse(10L, 1L, "Ivan", 2L, "luxury",
-                        LocalDate.of(2026, 12, 1), LocalDate.of(2026, 12, 5),
+                        grevcev.TestDates.future(12, 1), grevcev.TestDates.future(12, 5),
                         ReservationStatus.PENDING));
 
         mockMvc.perform(post("/api/v1/reservations")
                         .with(ivan())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                        .content(grevcev.TestDates.futureJson("""
                                 {"roomId":2,
-                                 "startDate":"2026-12-01","endDate":"2026-12-05"}"""))
+                                 "startDate":"<date:12-01>","endDate":"<date:12-05>"}""")))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.id").value(10))
@@ -81,9 +81,9 @@ class ReservationControllerTest {
         mockMvc.perform(post("/api/v1/reservations")
                         .with(ivan())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
+                        .content(grevcev.TestDates.futureJson("""
                                 {"roomId":2,
-                                 "startDate":"2026-12-01","endDate":null}"""))
+                                 "startDate":"<date:12-01>","endDate":null}""")))
                 .andExpect(status().is4xxClientError());
     }
 

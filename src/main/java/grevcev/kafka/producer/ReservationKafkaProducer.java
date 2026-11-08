@@ -1,5 +1,6 @@
 package grevcev.kafka.producer;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -13,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
 public class ReservationKafkaProducer {
 
     private final KafkaTemplate<String, JsonNode> kafkaTemplate;
+    @Value("${app.kafka.topic:reservations}")
+    private String topic;
     private final static Logger log = LoggerFactory.getLogger(ReservationKafkaProducer.class);
 
     public ReservationKafkaProducer(KafkaTemplate<String, JsonNode> kafkaTemplate){
@@ -23,7 +26,7 @@ public class ReservationKafkaProducer {
             String key, JsonNode node) {
 
         return kafkaTemplate.send(
-                "reservations",
+                topic,
                 key,
                 node
         ).whenComplete(

@@ -87,8 +87,8 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
                 Reservation.builder()
                         .user(user)
                         .room(room)
-                        .startDate(LocalDate.of(2027, 1, 10))
-                        .endDate(LocalDate.of(2027, 1, 15))
+                        .startDate(grevcev.TestDates.future(1, 10))
+                        .endDate(grevcev.TestDates.future(1, 15))
                         .status(ReservationStatus.PENDING)
                         .build()
         );
@@ -145,11 +145,11 @@ class KafkaIntegrationTest extends AbstractIntegrationTest {
 
         ReservationCreatedKafkaEvent event =
                 new ReservationCreatedKafkaEvent(
-                        1L,
-                        2L,
-                        3L,
-                        LocalDate.of(2027, 1, 10),
-                        LocalDate.of(2027, 1, 15)
+                        Long.MAX_VALUE,
+                        Long.MAX_VALUE,
+                        Long.MAX_VALUE,
+                        grevcev.TestDates.future(1, 10),
+                        grevcev.TestDates.future(1, 15)
                 );
 
         JsonNode payload = objectMapper.valueToTree(event);

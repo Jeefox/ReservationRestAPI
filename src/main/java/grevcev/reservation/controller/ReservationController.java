@@ -37,9 +37,9 @@ public class ReservationController {
     @Operation(
             summary = "Создать бронь",
             description = """
-            Создаёт новое бронирование для указанного пользователя на указанную комнату.
+            Создаёт новое бронирование для текущего пользователя на указанную комнату.
             Проверяет пересечение дат с активными бронями той же комнаты — при конфликте возвращает 409.
-            При успешном создании публикует событие ReservationCreatedEvent.
+            Создаёт outbox-событие RESERVATION_CREATED в той же транзакции.
             """
     )
     @ApiResponse(responseCode = "201", description = "Бронь создана")
@@ -84,6 +84,8 @@ public class ReservationController {
             Полностью заменяет данные бронирования.
             При смене дат/комнаты выполняется повторная проверка конфликтов,
             исключая саму обновляемую бронь (excludedId).
+            Изменение дат/комнаты APPROVED возвращает статус PENDING для повторного согласования.
+            Брони с startDate раньше сегодня, CANCELLED и DELETED не редактируются.
             """
     )
     @ApiResponse(responseCode = "200", description = "Бронь обновлена")
@@ -99,7 +101,7 @@ public class ReservationController {
 
     @Operation(
             summary = "Удалить бронь",
-            description = "Физически удаляет бронирование из базы данных."
+            description = "Сохраняет бронь со статусом DELETED; она не занимает комнату, журнал событий сохраняется."
     )
     @ApiResponse(responseCode = "204", description = "Бронь удалена")
     @ApiResponse(responseCode = "404", description = "Бронь не найдена")
@@ -116,7 +118,8 @@ public class ReservationController {
             description = """
             Возвращает страницу бронирований. Все фильтры опциональны и комбинируются через AND.
             Сортировка задаётся параметром sort (например, sort=startDate,desc).
-            Нумерация страниц начинается с 0.
+            Нумерация страниц начинается с 0. from отдельно ограничивает endDate > from,
+            to отдельно ограничивает startDate < to. При двух границах требуется from < to, иначе 400.
             """
     )
     @ApiResponse(responseCode = "200", description = "Страница бронирований")
@@ -137,9 +140,9 @@ public class ReservationController {
             summary = "Изменить статус брони",
             description = """
             Выполняет переход состояния по правилам конечного автомата:
-            - PENDING → APPROVED или CANCELLED
-            - APPROVED → CANCELLED
-            - CANCELLED — терминальное состояние (выходов нет)
+            - PENDING → APPROVED, CANCELLED или DELETED
+            - APPROVED → CANCELLED или DELETED
+            - CANCELLED → DELETED; DELETED — терминальное состояние
             
             При невалидном переходе возвращает 409. При успешном изменении публикует
             событие ReservationStatusChangedEvent после коммита транзакции.
@@ -158,6 +161,8 @@ public class ReservationController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(summary = "Количество активных броней по комнатам",
+            description = "Считает PENDING/APPROVED на полуоткрытом интервале [from, to). Комнаты с нулём отсутствуют.")
     @GetMapping("/stats")
     public List<RoomStatsResponse> getRoomStats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

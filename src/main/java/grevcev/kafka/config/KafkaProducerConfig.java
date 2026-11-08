@@ -10,6 +10,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
+import grevcev.kafka.event.KafkaEventEnvelope;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,11 +27,6 @@ public class KafkaProducerConfig {
         Map<String, Object> properties =
                 new HashMap<>(kafkaProperties.buildProducerProperties());
 
-        System.out.println(
-                "PRODUCER BOOTSTRAP = " +
-                        properties.get(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG)
-        );
-
         return new DefaultKafkaProducerFactory<>(
                 properties,
                 new StringSerializer(),
@@ -41,5 +39,14 @@ public class KafkaProducerConfig {
             ProducerFactory<String, JsonNode> producerFactory
     ) {
         return new KafkaTemplate<>(producerFactory);
+    }
+    @Bean
+    public KafkaTemplate<String, Object> deadLetterTemplate(KafkaProperties kafkaProperties) {
+        Map<String, Object> properties = new HashMap<>(kafkaProperties.buildProducerProperties());
+        properties.put(ProducerConfig.ACKS_CONFIG, "all");
+        var serializer = new DelegatingByTypeSerializer(Map.of(
+                byte[].class, new ByteArraySerializer(),
+                KafkaEventEnvelope.class, new JsonSerializer<>()));
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(properties, new StringSerializer(), serializer));
     }
 }

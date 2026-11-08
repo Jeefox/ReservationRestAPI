@@ -49,7 +49,7 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void shouldCreatePendingNotificationForReservationCreatedEvent() {
+    void shouldRecordNotificationForReservationCreatedEvent() {
         // given
         User user = userRepository.save(
                 User.builder()
@@ -71,8 +71,8 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
                 Reservation.builder()
                         .user(user)
                         .room(room)
-                        .startDate(LocalDate.of(2027, 1, 10))
-                        .endDate(LocalDate.of(2027, 1, 15))
+                        .startDate(grevcev.TestDates.future(1, 10))
+                        .endDate(grevcev.TestDates.future(1, 15))
                         .status(ReservationStatus.PENDING)
                         .build()
         );
@@ -121,10 +121,12 @@ class NotificationIntegrationTest extends AbstractIntegrationTest {
                             .isEqualTo(reservation.getId());
 
                     assertThat(notification.getStatus())
-                            .isEqualTo(NotificationStatus.PENDING);
+                            .isEqualTo(NotificationStatus.RECORDED);
 
-                    assertThat(notification.getSentAt())
-                            .isNull();
+                    assertThat(notification.getCreatedAt())
+                            .isNotNull();
                 });
     }
+
+
 }

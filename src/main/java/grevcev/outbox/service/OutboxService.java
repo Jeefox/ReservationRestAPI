@@ -8,6 +8,9 @@ import grevcev.outbox.model.OutboxEventStatus;
 import grevcev.outbox.repository.OutboxEventRepository;
 import grevcev.reservation.model.Reservation;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+import java.time.Duration;
+import java.util.ArrayList;
 import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +21,15 @@ import java.util.UUID;
 
 @Service
 public class OutboxService {
+
+    @Value("${app.outbox.batch-size:10}")
+    private int batchSize;
+    @Value("${app.outbox.max-attempts:5}")
+    private int maxAttempts;
+    @Value("${app.outbox.lease:PT10M}")
+    private Duration lease;
+    @Value("${app.outbox.retry-delay:PT10S}")
+    private Duration retryDelay;
 
     private final ObjectMapper mapper;
     private final OutboxEventRepository repository;
@@ -63,24 +75,40 @@ public class OutboxService {
 
     @Transactional
     public List<OutboxEvent> claimBatch() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(10);
-        List<OutboxEvent> events = repository.claimBatch(threshold);
         LocalDateTime now = LocalDateTime.now();
-        events.stream()
-                .forEach(event -> {
-                    event.setStatus(OutboxEventStatus.PROCESSING);
-                    event.setProcessingStartedAt(now);
-                });
-        return events;
+        List<OutboxEvent> events = repository.claimBatch(now.minus(lease), now, batchSize);
+        List<OutboxEvent> claimed = new ArrayList<>();
+        for (OutboxEvent event : events) {
+            if (event.getAttempts() >= maxAttempts) {
+                event.setStatus(OutboxEventStatus.FAILED);
+                event.setLastError("Publication lease expired after final attempt");
+                continue;
+            }
+            event.setStatus(OutboxEventStatus.PROCESSING);
+            event.setProcessingStartedAt(now);
+            event.setAttempts(event.getAttempts() + 1);
+            claimed.add(event);
+        }
+        return claimed;
     }
 
     @Transactional
-    public void markAsProcessed(UUID eventId) {
-        OutboxEvent event = repository.findById(eventId)
-                .orElseThrow();
-
+    public void markAsProcessed(UUID eventId, int attempt) {
+        OutboxEvent event = repository.findById(eventId).orElseThrow();
+        if (event.getStatus() != OutboxEventStatus.PROCESSING || event.getAttempts() != attempt) return;
         event.setStatus(OutboxEventStatus.PROCESSED);
         event.setProcessedAt(LocalDateTime.now());
+        event.setLastError(null);
+        event.setNextAttemptAt(null);
+    }
 
+    @Transactional
+    public void markAsFailed(UUID eventId, int attempt, Throwable failure) {
+        OutboxEvent event = repository.findById(eventId).orElseThrow();
+        if (event.getStatus() != OutboxEventStatus.PROCESSING || event.getAttempts() != attempt) return;
+        event.setStatus(attempt >= maxAttempts ? OutboxEventStatus.FAILED : OutboxEventStatus.NEW);
+        String error = failure.toString();
+        event.setLastError(error.substring(0, Math.min(error.length(), 2000)));
+        event.setNextAttemptAt(LocalDateTime.now().plus(retryDelay));
     }
 }

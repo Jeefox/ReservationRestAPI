@@ -22,6 +22,9 @@ public class OutboxEvent{
     @Id
     @Column
     private UUID id;
+    private int attempts;
+    private String lastError;
+    private LocalDateTime nextAttemptAt;
     private String aggregateType;
     private Long aggregateId;
     private String eventType;

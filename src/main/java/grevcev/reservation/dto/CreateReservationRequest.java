@@ -14,6 +14,6 @@ public record CreateReservationRequest(
     @AssertTrue
     public boolean isDateValid(){
         if(startDate ==null || endDate ==null) return true;
-        return !endDate.isBefore(startDate);
+        return endDate.isAfter(startDate);
     }
 }
